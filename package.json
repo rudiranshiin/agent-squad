@@ -1,0 +1,47 @@
+{
+  "name": "agentic-framework",
+  "version": "2.0.0",
+  "description": "Enhanced Agentic AI Framework with React UI",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "uvicorn api.simple_main:app --reload --host 0.0.0.0 --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "install:frontend": "cd frontend && npm install",
+    "install:all": "npm run install:frontend",
+    "build": "cd frontend && npm run build",
+    "test:backend": "python -m pytest tests/ -v",
+    "test:frontend": "cd frontend && npm test",
+    "lint:backend": "python -m flake8 framework/ api/ --max-line-length=100",
+    "lint:frontend": "cd frontend && npm run lint",
+    "setup": "pip install fastapi uvicorn && npm run install:all",
+    "clean": "rm -rf frontend/node_modules frontend/dist __pycache__ .pytest_cache",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rudiranshiin/agent-squad.git"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "framework",
+    "llm",
+    "context-engineering",
+    "react",
+    "fastapi",
+    "typescript"
+  ],
+  "author": "AI Staff Engineer",
+  "license": "MIT"
+}
