@@ -10,6 +10,7 @@ import time
 from .context_engine import ContextEngine
 from .memory_manager import MemoryManager
 from .tool_registry import ToolRegistry
+from .llm_client import get_llm_client, LLMMessage, LLMResponse
 from ..utils.config_loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,10 @@ class BaseAgent(ABC):
         )
 
         self.tool_registry = ToolRegistry()
+
+        # Initialize LLM client
+        llm_config = self.config.get("llm_config", {})
+        self.llm_client = get_llm_client(llm_config)
 
         # Agent state
         self._is_running = False
@@ -233,6 +238,64 @@ class BaseAgent(ABC):
         Override in subclasses to add custom post-processing steps.
         """
         return response
+
+    async def generate_llm_response(
+        self,
+        prompt: str,
+        system_message: str = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        provider: str = None
+    ) -> str:
+        """
+        Generate response using LLM client.
+
+        Args:
+            prompt: User prompt/message
+            system_message: Optional system message
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0.0 to 1.0)
+            provider: Specific LLM provider to use
+
+        Returns:
+            Generated response text
+        """
+        try:
+            messages = []
+
+            # Add system message if provided
+            if system_message:
+                messages.append(LLMMessage(role="system", content=system_message))
+
+            # Add user prompt
+            messages.append(LLMMessage(role="user", content=prompt))
+
+            # Generate response using LLM client
+            response = await self.llm_client.generate_response(
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                provider=provider
+            )
+
+            # Add LLM usage to context
+            self.context_engine.add_tool_context(
+                f"LLM response generated using {response.metadata.get('provider', 'unknown')}",
+                tool_name="llm_client",
+                metadata={
+                    "provider": response.metadata.get('provider'),
+                    "model": response.model,
+                    "tokens_used": response.tokens_used,
+                    "temperature": temperature
+                }
+            )
+
+            logger.debug(f"Generated LLM response: {len(response.content)} chars, {response.tokens_used} tokens")
+            return response.content
+
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            raise
 
     async def use_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Any:
         """

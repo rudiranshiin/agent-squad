@@ -83,6 +83,12 @@ teaching_preferences:
   cultural_emphasis: true
   character_focus: true
   tone_correction: "immediate_and_gentle"
+
+# LLM Configuration
+llm_config:
+  preferred_provider: "anthropic"  # Claude handles Chinese language nuances well
+  max_response_tokens: 900
+  response_temperature: 0.6  # Balanced creativity and accuracy for language teaching
   progression: "building_blocks_approach"
 
 cultural_specialties:
