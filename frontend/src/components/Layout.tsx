@@ -14,6 +14,8 @@ import {
   Badge,
   Chip,
   useTheme,
+  Avatar,
+  Divider,
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -21,14 +23,14 @@ import {
   AccountTree as FlowIcon,
   Chat as ChatIcon,
   Extension as ModuleIcon,
-  Brightness4,
-  Brightness7,
+  Settings as SettingsIcon,
+  Analytics as AnalyticsIcon,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { systemApi } from '../services/api'
 
-const drawerWidth = 240
+const drawerWidth = 260
 
 interface LayoutProps {
   children: React.ReactNode
@@ -44,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     'health',
     systemApi.getHealth,
     {
-      refetchInterval: 30000, // Refresh every 30 seconds
+      refetchInterval: 30000,
       retry: 1,
     }
   )
@@ -58,94 +60,162 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       text: 'Dashboard',
       icon: <DashboardIcon />,
       path: '/',
+      description: 'System overview',
     },
     {
       text: 'Agent Flow',
       icon: <FlowIcon />,
       path: '/flow',
+      description: 'Visual workflow',
     },
     {
-      text: 'Chat Interface',
+      text: 'Testing Studio',
       icon: <ChatIcon />,
       path: '/chat',
+      description: 'Test & analyze agents',
     },
     {
       text: 'Module Manager',
       icon: <ModuleIcon />,
       path: '/modules',
+      description: 'Install & manage modules',
     },
   ]
 
   const drawer = (
-    <Box>
-      <Toolbar>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Toolbar sx={{ px: 3, py: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Avatar
             sx={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: 'bold',
-              fontSize: '14px',
+              width: 40,
+              height: 40,
+              background: 'linear-gradient(135deg, #007AFF 0%, #5AC8FA 100%)',
+              fontWeight: 700,
+              fontSize: '1.2rem',
             }}
           >
             A
+          </Avatar>
+          <Box>
+            <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              Agentic
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+              AI Framework
+            </Typography>
           </Box>
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold' }}>
-            Agentic
-          </Typography>
         </Box>
       </Toolbar>
-      <List>
+
+      <Divider sx={{ mx: 2, opacity: 0.3 }} />
+
+      <List sx={{ px: 2, py: 1, flexGrow: 1 }}>
         {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
+          <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               selected={location.pathname === item.path}
               onClick={() => navigate(item.path)}
               sx={{
+                borderRadius: 2,
+                py: 1.5,
+                px: 2,
                 '&.Mui-selected': {
-                  backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                  borderRight: '3px solid #667eea',
+                  backgroundColor: 'rgba(0, 122, 255, 0.15)',
+                  color: '#007AFF',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 122, 255, 0.2)',
+                  },
+                },
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
                 },
               }}
             >
-              <ListItemIcon sx={{ color: location.pathname === item.path ? '#667eea' : 'inherit' }}>
+              <ListItemIcon
+                sx={{
+                  color: location.pathname === item.path ? '#007AFF' : 'inherit',
+                  minWidth: 36,
+                }}
+              >
                 {item.icon}
               </ListItemIcon>
               <ListItemText
-                primary={item.text}
-                sx={{
-                  '& .MuiTypography-root': {
-                    fontWeight: location.pathname === item.path ? 600 : 400
-                  }
-                }}
+                primary={
+                  <Typography variant="body2" fontWeight={location.pathname === item.path ? 600 : 500}>
+                    {item.text}
+                  </Typography>
+                }
+                secondary={
+                  <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
+                    {item.description}
+                  </Typography>
+                }
               />
             </ListItemButton>
           </ListItem>
         ))}
       </List>
+
+      {/* Bottom Status Section */}
+      <Box sx={{ p: 2, mt: 'auto' }}>
+        <Divider sx={{ mb: 2, opacity: 0.3 }} />
+        {healthData && (
+          <Box sx={{ p: 2, backgroundColor: 'rgba(255, 255, 255, 0.03)', borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                System Status
+              </Typography>
+              <Chip
+                label={healthData.status === 'healthy' ? 'Healthy' : 'Warning'}
+                size="small"
+                color={healthData.status === 'healthy' ? 'success' : 'warning'}
+                sx={{
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                v{healthData.version}
+              </Typography>
+              <Badge
+                badgeContent={Object.keys(healthData.modules || {}).length}
+                color="primary"
+                max={99}
+                sx={{
+                  '& .MuiBadge-badge': {
+                    fontSize: '0.6rem',
+                    height: 14,
+                    minWidth: 14,
+                  },
+                }}
+              >
+                <ModuleIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              </Badge>
+            </Box>
+          </Box>
+        )}
+      </Box>
     </Box>
   )
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar
         position="fixed"
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           ml: { sm: `${drawerWidth}px` },
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(10px)',
+          backgroundColor: 'rgba(15, 15, 15, 0.95)',
+          backdropFilter: 'blur(20px) saturate(180%)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: 'none',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -155,34 +225,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 500 }}>
-            Enhanced Agentic Framework 2.0
-          </Typography>
 
-          {/* Health Status */}
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+              {menuItems.find(item => item.path === location.pathname)?.text || 'Agentic Framework'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>
+              {menuItems.find(item => item.path === location.pathname)?.description || 'Enhanced AI Agent Framework 2.0'}
+            </Typography>
+          </Box>
+
+          {/* Header Status Indicators */}
           {healthData && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Chip
                 label={`v${healthData.version}`}
                 size="small"
                 variant="outlined"
-                sx={{ color: 'white', borderColor: 'rgba(255, 255, 255, 0.3)' }}
+                sx={{
+                  color: 'white',
+                  borderColor: 'rgba(255, 255, 255, 0.2)',
+                  fontSize: '0.7rem',
+                  height: 24,
+                }}
               />
-              <Badge
-                badgeContent={Object.keys(healthData.modules || {}).length}
-                color="primary"
-                max={99}
-              >
-                <Chip
-                  label={healthData.status}
-                  size="small"
-                  color={healthData.status === 'healthy' ? 'success' : 'warning'}
-                  sx={{
-                    color: 'white',
-                    fontWeight: 600,
-                  }}
-                />
-              </Badge>
+              <Chip
+                label={healthData.status}
+                size="small"
+                color={healthData.status === 'healthy' ? 'success' : 'warning'}
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '0.7rem',
+                  height: 24,
+                }}
+              />
             </Box>
           )}
         </Toolbar>
@@ -193,6 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
         aria-label="navigation"
       >
+        {/* Mobile drawer */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -205,8 +282,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              backdropFilter: 'blur(20px)',
+              backgroundColor: 'rgba(15, 15, 15, 0.98)',
+              backdropFilter: 'blur(20px) saturate(180%)',
               border: 'none',
               borderRight: '1px solid rgba(255, 255, 255, 0.1)',
             },
@@ -214,6 +291,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         >
           {drawer}
         </Drawer>
+
+        {/* Desktop drawer */}
         <Drawer
           variant="permanent"
           sx={{
@@ -221,8 +300,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              backdropFilter: 'blur(20px)',
+              backgroundColor: 'rgba(15, 15, 15, 0.98)',
+              backdropFilter: 'blur(20px) saturate(180%)',
               border: 'none',
               borderRight: '1px solid rgba(255, 255, 255, 0.1)',
             },
@@ -240,10 +319,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+          background: 'linear-gradient(180deg, rgba(20, 20, 20, 0.8) 0%, rgba(15, 15, 15, 0.9) 100%)',
         }}
       >
-        <Toolbar />
+        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }} />
         {children}
       </Box>
     </Box>

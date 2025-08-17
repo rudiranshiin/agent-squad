@@ -1,12 +1,12 @@
 export interface Agent {
   name: string
   type: string
-  status: 'running' | 'stopped'
-  module?: string
-  personality?: Record<string, any>
-  context_summary?: ContextSummary
-  memory_stats?: Record<string, any>
-  tools?: string[]
+  status: 'running' | 'stopped' | 'error'
+  health: string
+  config: Record<string, any>
+  performance: Record<string, any>
+  last_activity?: string
+  error_message?: string
 }
 
 export interface ContextSummary {
@@ -20,23 +20,19 @@ export interface ContextSummary {
 
 export interface Module {
   name: string
-  version: string
-  description: string
-  author: string
+  path: string
+  type: string
   dependencies: string[]
-  agent_types: string[]
-  tools: string[]
-  config_schema: Record<string, any>
-  module_path: string
-  is_active: boolean
+  config: Record<string, any>
+  agents: string[]
 }
 
 export interface ModuleStatus {
-  module_info: Module
-  agents: Record<string, AgentStatus>
-  tools: string[]
-  hooks: number
-  initialized: boolean
+  loaded: boolean
+  error?: string
+  last_update?: string
+  agents_count: number
+  performance: Record<string, any>
 }
 
 export interface AgentStatus {
@@ -50,43 +46,62 @@ export interface MessageRequest {
   text: string
   context?: Record<string, any>
   user_id?: string
+  config?: any
 }
 
 export interface MessageResponse {
   response: string
-  suggestions?: string[]
-  tool_results?: any[]
+  agent_name: string
   processing_time?: number
-  agent_name?: string
-  agent_type?: string
-  context_summary?: ContextSummary
+  suggestions?: string[]
+  tokens_used?: number
+  cost?: number
+  context?: Record<string, any>
+  metadata?: Record<string, any>
+}
+
+export interface CollaborationNode {
+  id: string
+  name: string
+  type: string
+  status: string
+  x: number
+  y: number
+}
+
+export interface CollaborationEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+  type: string
+  weight?: number
 }
 
 export interface CollaborationGraph {
-  [agentName: string]: {
-    type: string
-    can_collaborate_with: string[]
-    collaboration_style: string
-  }
+  nodes: CollaborationNode[]
+  edges: CollaborationEdge[]
 }
 
 export interface PerformanceMetrics {
-  resource_limits: Record<string, number>
-  connection_pools: Record<string, number>
-  performance_metrics: Record<string, {
-    avg: number
-    min: number
-    max: number
-    count: number
-  }>
+  agent_count: number
+  total_messages: number
+  avg_response_time: number
+  memory_usage: number
+  cpu_usage: number
+  error_rate: number
+  uptime: number
+  throughput: number
+  optimization_suggestions: string[]
 }
 
 export interface HealthStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy'
+  status: 'healthy' | 'warning' | 'error'
   version: string
   modules: Record<string, ModuleStatus>
   performance: PerformanceMetrics
   timestamp: number
+  issues?: string[]
 }
 
 export interface AgentNode {
