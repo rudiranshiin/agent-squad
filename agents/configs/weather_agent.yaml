@@ -77,3 +77,9 @@ response_formats:
   detailed: "Comprehensive weather analysis"
   forecast: "Multi-day weather outlook"
   advisory: "Weather-based recommendations"
+
+# LLM Configuration
+llm_config:
+  preferred_provider: "openai"  # GPT-4o is excellent for factual information
+  max_response_tokens: 600
+  response_temperature: 0.3  # Lower temperature for more focused, factual responses

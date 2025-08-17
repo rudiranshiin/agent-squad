@@ -287,18 +287,77 @@ class WeatherAgent(BaseAgent):
     async def _generate_contextual_response(self, prompt: str) -> str:
         """
         Generate response using LLM with context.
-
-        This is a placeholder - in a real implementation, you would integrate
-        with an LLM.
         """
-        # For demonstration, return a template response
-        return """Thank you for your weather inquiry! Based on the available data, here's what I can tell you:
+        try:
+            # Build system message for the weather agent
+            system_message = self._build_weather_system_message()
 
-The current weather conditions show typical patterns for this time of year. I recommend checking for any weather updates and planning accordingly.
+            # Generate response using the LLM client
+            response = await self.generate_llm_response(
+                prompt=prompt,
+                system_message=system_message,
+                max_tokens=self.config.get("max_response_tokens", 600),
+                temperature=self.config.get("response_temperature", 0.3),  # Lower temp for factual weather info
+                provider=self.config.get("llm_config", {}).get("preferred_provider")
+            )
 
-For detailed and up-to-date weather information, I suggest monitoring local weather services and alerts.
+            return response
 
-Stay safe and prepared for any weather changes!"""
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            # Fallback to a basic response if LLM fails
+            return self._get_weather_fallback_response()
+
+    def _build_weather_system_message(self) -> str:
+        """
+        Build comprehensive system message for the weather agent LLM.
+        """
+        personality_desc = self._build_personality_context()
+        specialties_desc = ", ".join(self.weather_specialties) if self.weather_specialties else "general weather information"
+
+        system_message = f"""You are an expert weather assistant with the following characteristics:
+
+PERSONALITY: {personality_desc}
+
+WEATHER EXPERTISE:
+- Specialties: {specialties_desc}
+- Provide accurate, helpful weather information
+- Focus on practical implications of weather conditions
+- Include safety recommendations when appropriate
+- Use clear, easy-to-understand language
+
+RESPONSE GUIDELINES:
+1. Always prioritize safety in weather-related advice
+2. Provide specific, actionable information
+3. Include relevant weather details (temperature, precipitation, wind, etc.)
+4. Suggest appropriate activities or precautions based on conditions
+5. Mention any weather alerts or warnings clearly
+6. Be concise but comprehensive
+7. Use metric or imperial units as appropriate for the region
+
+FORMAT PREFERENCES:
+- Current conditions: temperature, weather description, feels-like temperature
+- Forecasts: daily highs/lows, precipitation chances, conditions
+- Recommendations: clothing, activities, safety precautions
+- Alerts: clearly highlighted severe weather warnings
+
+Your goal is to help users make informed decisions based on weather information while keeping them safe and prepared."""
+
+        return system_message
+
+    def _get_weather_fallback_response(self) -> str:
+        """
+        Get fallback response when LLM is not available.
+        """
+        return """Thank you for your weather inquiry! I'm currently experiencing some technical difficulties accessing my full weather analysis capabilities.
+
+Based on general weather patterns, I recommend:
+- Checking local weather services for the most current conditions
+- Monitoring weather alerts and warnings in your area
+- Dressing appropriately for the season and expected conditions
+- Having backup plans for outdoor activities
+
+Please try your weather query again in a moment for more detailed information!"""
 
     def _determine_query_type(self, message: str) -> str:
         """

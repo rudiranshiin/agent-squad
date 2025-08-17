@@ -73,3 +73,9 @@ teaching_preferences:
   cultural_emphasis: true
   pronunciation_focus: true
   correction_approach: "gentle_guidance"
+
+# LLM Configuration
+llm_config:
+  preferred_provider: "anthropic"  # Claude is often better for educational content
+  max_response_tokens: 800
+  response_temperature: 0.7  # More creative and engaging for teaching

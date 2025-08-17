@@ -250,20 +250,26 @@ class LanguageTeacherAgent(BaseAgent):
     async def _generate_contextual_response(self, prompt: str) -> str:
         """
         Generate response using LLM with context.
-
-        This is a placeholder - in a real implementation, you would integrate
-        with an LLM like OpenAI GPT, Anthropic Claude, or a local model.
         """
-        # For demonstration, return a template response
-        # In production, this would call an actual LLM
+        try:
+            # Build system message for the language teacher
+            system_message = self._build_system_message()
 
-        return f"""Thank you for your message! As your {self.primary_language} teacher, I'm here to help you learn effectively.
+            # Generate response using the LLM client
+            response = await self.generate_llm_response(
+                prompt=prompt,
+                system_message=system_message,
+                max_tokens=self.config.get("max_response_tokens", 800),
+                temperature=self.config.get("response_temperature", 0.7),
+                provider=self.config.get("llm_config", {}).get("preferred_provider")
+            )
 
-Based on your input, I can see you're making good progress. Let me provide some guidance and feedback to help you continue improving.
+            return response
 
-{self._get_default_teaching_response()}
-
-Keep up the excellent work, and don't hesitate to ask if you have any questions!"""
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            # Fallback to a basic response if LLM fails
+            return self._get_fallback_response()
 
     def _get_default_teaching_response(self) -> str:
         """Get a default teaching response based on language and specialties."""
@@ -341,6 +347,53 @@ Keep up the excellent work, and don't hesitate to ask if you have any questions!
             steps.append("Study British cultural references and regional variations")
 
         return steps
+
+    def _build_system_message(self) -> str:
+        """
+        Build comprehensive system message for the language teacher LLM.
+        """
+        personality_desc = self._build_personality_context()
+        specialties_desc = ", ".join(self.specialties) if self.specialties else "general language instruction"
+
+        methodology = self.teaching_preferences.get("methodology", "communicative")
+        feedback_style = self.teaching_preferences.get("feedback_style", "encouraging")
+
+        system_message = f"""You are an expert {self.primary_language} language teacher with the following characteristics:
+
+PERSONALITY: {personality_desc}
+
+TEACHING APPROACH:
+- Methodology: {methodology} approach
+- Feedback Style: {feedback_style}
+- Specialties: {specialties_desc}
+- Focus on practical, conversational skills
+- Provide constructive corrections when needed
+- Include cultural context when relevant
+
+RESPONSE GUIDELINES:
+1. Be encouraging and supportive
+2. Correct errors gently and constructively
+3. Provide specific examples and explanations
+4. Suggest next steps for improvement
+5. Include pronunciation tips when relevant
+6. Add cultural context for better understanding
+7. Keep responses focused and educational
+
+Your goal is to help students improve their {self.primary_language} skills through engaging, practical instruction while maintaining an {feedback_style} teaching style."""
+
+        return system_message
+
+    def _get_fallback_response(self) -> str:
+        """
+        Get fallback response when LLM is not available.
+        """
+        return f"""Thank you for your message! As your {self.primary_language} teacher, I'm here to help you learn effectively.
+
+I'm currently experiencing some technical difficulties, but I can still provide you with some general guidance:
+
+{self._get_default_teaching_response()}
+
+Please try again in a moment, and I'll be able to provide more personalized feedback!"""
 
     async def _handle_collaboration(self, message: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simplified Agentic Framework API
-A demo version that works without complex dependencies
+A demo version that works with real agents when available, with mock fallbacks
 """
 
 from fastapi import FastAPI, HTTPException
@@ -12,6 +12,45 @@ import time
 import random
 import uuid
 from datetime import datetime
+import sys
+import os
+from pathlib import Path
+
+# Add the project root to the Python path for agent imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Try to import real agent functionality
+try:
+    from framework.core.agent_registry import AgentRegistry
+    from framework.core.llm_client import get_llm_client
+    REAL_AGENTS_AVAILABLE = True
+    print("✅ Real agent framework available")
+except ImportError as e:
+    REAL_AGENTS_AVAILABLE = False
+    print(f"⚠️  Real agent framework not available: {e}")
+    print("🔄 Trying standalone LLM client...")
+
+# Try standalone LLM client as fallback
+STANDALONE_LLM_AVAILABLE = False
+if not REAL_AGENTS_AVAILABLE:
+    try:
+        # Import our working standalone LLM client
+        import sys
+        sys.path.insert(0, str(project_root))
+        from test_llm_standalone import StandaloneLLMClient, LLMMessage
+
+        # Test if we have API keys
+        test_client = StandaloneLLMClient()
+        if test_client.get_available_providers():
+            STANDALONE_LLM_AVAILABLE = True
+            print("✅ Standalone LLM client available with API keys")
+            print(f"✅ Available providers: {test_client.get_available_providers()}")
+        else:
+            print("❌ No LLM providers available (check API keys)")
+    except Exception as e:
+        print(f"❌ Standalone LLM client failed: {e}")
+        print("🔄 Using mock responses")
 
 app = FastAPI(
     title="Agentic Framework API (Demo)",
@@ -27,6 +66,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize real agents if available
+real_agents = {}
+if REAL_AGENTS_AVAILABLE:
+    try:
+        registry = AgentRegistry()
+        config_dir = project_root / "agents" / "configs"
+
+        # Load available agent configs
+        available_configs = {
+            "professor_james": "british_teacher.yaml",
+            "teacher_mei": "chinese_teacher.yaml",
+            "weather_assistant": "weather_agent.yaml"
+        }
+
+        for agent_id, config_file in available_configs.items():
+            config_path = config_dir / config_file
+            if config_path.exists():
+                try:
+                    agent = registry.load_agent(str(config_path))
+                    real_agents[agent_id] = agent
+                    print(f"✅ Loaded real agent: {agent_id}")
+                except Exception as e:
+                    print(f"❌ Failed to load agent {agent_id}: {e}")
+
+        # Test LLM availability
+        llm_client = get_llm_client()
+        llm_providers = llm_client.get_available_providers()
+        if llm_providers:
+            print(f"✅ LLM providers available: {llm_providers}")
+        else:
+            print("⚠️  No LLM providers available - agents will use fallback responses")
+
+    except Exception as e:
+        print(f"❌ Error initializing real agents: {e}")
+        real_agents = {}
 
 # Mock Data
 mock_agents = {
@@ -77,6 +152,22 @@ mock_agents = {
             "context_by_type": {"system": 1, "user": 1, "memory": 1}
         },
         "memory_stats": {"conversations": 2, "facts": 8, "preferences": 3}
+    },
+    "weather_wizard": {
+        "name": "weather_wizard",
+        "type": "weather_assistant",
+        "status": "running",
+        "module": "weather_module",
+        "personality": {"style": "Mystical weather sage", "tone": "Wise and dramatic"},
+        "tools": ["advanced_forecasting", "climate_analysis", "storm_tracking", "atmospheric_magic"],
+        "context_summary": {
+            "total_items": 4,
+            "total_tokens": 950,
+            "max_tokens": 4000,
+            "token_utilization": 23.75,
+            "context_by_type": {"system": 2, "user": 1, "memory": 1}
+        },
+        "memory_stats": {"conversations": 1, "facts": 15, "preferences": 7}
     }
 }
 
@@ -157,59 +248,339 @@ class AgentCreateRequest(BaseModel):
     config: Dict[str, Any]
 
 # Helper Functions
-def generate_agent_response(agent_name: str, message: str) -> str:
-    """Generate a mock response based on agent type"""
+async def generate_agent_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Generate response using real agent if available, otherwise use mock"""
+    context = context or {}
+
+    # Try real agent first
+    if REAL_AGENTS_AVAILABLE and agent_name in real_agents:
+        try:
+            agent = real_agents[agent_name]
+            response = await agent.process_message(message, context)
+
+            return {
+                "response": response.get("response", "I apologize, but I couldn't generate a response."),
+                "agent_name": agent.name,
+                "agent_type": agent.agent_type,
+                "processing_time": response.get("processing_time", 0.0),
+                "suggestions": _extract_suggestions(response),
+                "tool_results": _extract_tool_results(response),
+                "context_summary": response.get("context_summary", {}),
+                "llm_used": True,
+                "success": response.get("success", False)
+            }
+        except Exception as e:
+            print(f"❌ Real agent {agent_name} failed: {e}")
+            # Fall back to standalone LLM
+
+    # Try standalone LLM client
+    if STANDALONE_LLM_AVAILABLE:
+        try:
+            return await _generate_standalone_llm_response(agent_name, message, context)
+        except Exception as e:
+            print(f"❌ Standalone LLM failed: {e}")
+            # Fall back to mock response
+
+    # Use mock response
+    return _generate_mock_response(agent_name, message)
+
+async def _generate_standalone_llm_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Generate response using standalone LLM client."""
+    import time
+    start_time = time.time()
+
+    try:
+        # Create LLM client
+        llm_client = StandaloneLLMClient()
+
+        # Get agent config from mock_agents to determine type
+        agent_config = mock_agents.get(agent_name, {})
+        agent_type = agent_config.get("type", "unknown")
+
+        # Build system prompt based on agent type
+        system_prompt = _build_agent_system_prompt(agent_name, agent_type)
+
+        # Create messages
+        messages = [
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=message)
+        ]
+
+        # Choose provider based on agent type
+        provider = "anthropic" if agent_type == "language_teacher" else "openai"
+        temperature = 0.7 if agent_type == "language_teacher" else 0.3
+
+        # Generate response
+        llm_response = await llm_client.generate_response(
+            messages,
+            provider=provider,
+            max_tokens=600,
+            temperature=temperature
+        )
+
+        processing_time = time.time() - start_time
+
+        return {
+            "response": llm_response.content,
+            "agent_name": agent_name,
+            "agent_type": agent_type,
+            "processing_time": processing_time,
+            "suggestions": _get_agent_suggestions(agent_type),
+            "tool_results": [{"llm_provider": llm_response.metadata.get("provider")}],
+            "context_summary": {
+                "llm_provider": llm_response.metadata.get("provider"),
+                "model": llm_response.model,
+                "tokens_used": llm_response.tokens_used
+            },
+            "llm_used": True,
+            "success": True
+        }
+
+    except Exception as e:
+        print(f"Error in standalone LLM response: {e}")
+        raise
+
+
+def _build_agent_system_prompt(agent_name: str, agent_type: str) -> str:
+    """Build system prompt for different agent types."""
+
+    if agent_name == "professor_james" or agent_type == "language_teacher":
+        return """You are Professor James, a distinguished British English teacher. You help students learn proper British English with correct pronunciation, grammar, and cultural context. You are patient, encouraging, and always maintain a professional yet warm demeanor.
+
+Teaching approach:
+- Be encouraging and constructive
+- Provide specific examples and corrections
+- Include cultural context when relevant
+- Use proper British English
+- Correct mistakes gently but clearly
+- Suggest follow-up learning opportunities"""
+
+    elif agent_name == "weather_bot" or agent_type == "weather_assistant":
+        return """You are a helpful weather assistant. Provide accurate, practical weather advice and information. Focus on actionable recommendations and safety considerations.
+
+Guidelines:
+- Prioritize safety in weather-related advice
+- Give specific, practical recommendations
+- Include clothing and activity suggestions
+- Be concise but comprehensive
+- Use friendly, helpful tone
+- Consider both current conditions and forecasts"""
+
+    elif agent_name == "chef_marco" or agent_type == "cooking_assistant":
+        return """You are Chef Marco, a passionate Italian chef. You help with cooking questions, recipes, and culinary techniques with Italian flair and expertise.
+
+Cooking style:
+- Share authentic Italian techniques
+- Be passionate about food and ingredients
+- Provide practical cooking tips
+- Include ingredient substitutions when helpful
+- Maintain warm, enthusiastic personality"""
+
+    else:
+        return f"""You are a helpful AI assistant specialized in {agent_type}. Provide accurate, helpful information and assistance while maintaining a professional and friendly demeanor."""
+
+
+def _get_agent_suggestions(agent_type: str) -> List[str]:
+    """Get suggestions based on agent type."""
+    suggestions_map = {
+        "language_teacher": [
+            "Help me with pronunciation",
+            "Check my grammar",
+            "Explain British expressions",
+            "Practice conversation"
+        ],
+        "weather_assistant": [
+            "What should I wear today?",
+            "Will it rain tomorrow?",
+            "Is it good weather for outdoor activities?",
+            "Show me the weekly forecast"
+        ],
+        "cooking_assistant": [
+            "Suggest a recipe",
+            "How do I make pasta?",
+            "What wine pairs with fish?",
+            "Cooking technique tips"
+        ]
+    }
+
+    return suggestions_map.get(agent_type, [
+        "How can you help me?",
+        "What can you do?",
+        "Tell me more",
+        "Give me advice"
+    ])
+
+
+def _extract_suggestions(response: Dict[str, Any]) -> List[str]:
+    """Extract suggestions from agent response"""
+    suggestions = []
+
+    # From teaching points
+    teaching_points = response.get("teaching_points", [])
+    for point in teaching_points:
+        if isinstance(point, dict) and "content" in point:
+            suggestions.append(f"Learn more about: {point['content']}")
+
+    # From next steps
+    next_steps = response.get("next_steps", [])
+    suggestions.extend(next_steps[:3])  # Limit to 3
+
+    # From recommendations
+    recommendations = response.get("recommendations", [])
+    if isinstance(recommendations, list):
+        suggestions.extend(recommendations[:2])
+
+    return suggestions[:5]  # Limit total suggestions
+
+def _extract_tool_results(response: Dict[str, Any]) -> List[Any]:
+    """Extract tool results from agent response"""
+    tool_results = []
+
+    # Tools used
+    tools_used = response.get("tools_used", [])
+    if tools_used:
+        tool_results.append({"tools_executed": tools_used})
+
+    # Weather data
+    if "weather_data" in response:
+        tool_results.append({"weather_data": response["weather_data"]})
+
+    # Analysis results
+    if "analysis" in response:
+        tool_results.append({"analysis": response["analysis"]})
+
+    return tool_results
+
+def _generate_mock_response(agent_name: str, message: str) -> Dict[str, Any]:
+    """Generate a mock response based on agent type and personality"""
     agent = mock_agents.get(agent_name)
     if not agent:
-        return "I'm not sure how to respond to that."
+        return {
+            "response": "I'm not sure how to respond to that.",
+            "agent_name": agent_name,
+            "agent_type": "unknown",
+            "processing_time": 0.5,
+            "suggestions": [],
+            "tool_results": [],
+            "context_summary": {},
+            "llm_used": False,
+            "success": False
+        }
 
     agent_type = agent["type"]
-    responses = {
-        "cooking_assistant": [
+    personality_style = agent.get("personality", {}).get("style", "")
+
+    # Agent-specific responses based on personality
+    if agent_name == "weather_wizard":
+        responses = [
+            f"🔮 *peers into the mystical weather crystal* Ah, I see the atmospheric spirits whisper of {random.choice(['sunshine', 'storms', 'gentle breezes', 'morning mist'])}...",
+            f"⚡ The ancient winds tell me secrets! *dramatically gestures* Let me consult the cosmic weather patterns...",
+            f"🌟 By the power of the four weather elements, I shall divine the forecast for you, seeker!",
+            f"🌪️ *swirls cape dramatically* The meteorological magic flows through me! I sense disturbances in the atmospheric force...",
+            f"❄️ Behold! The weather spirits have blessed me with visions of the skies above. Let me share their wisdom...",
+        ]
+    elif agent_name == "chef_marco":
+        responses = [
             f"Ah, bellissimo! Let me help you with that recipe. *adjusts chef's hat*",
             f"Mamma mia! That sounds delicious. Here's what I suggest...",
             f"As a chef, I recommend using fresh ingredients for the best flavor!",
             f"Let me share a secret from my nonna's kitchen...",
-        ],
-        "language_teacher": [
+        ]
+    elif agent_name == "professor_james":
+        responses = [
             f"Quite right! Let me help you improve your English, old chap.",
             f"Splendid question! In proper British English, we would say...",
             f"I say, that's a common mistake. Allow me to explain...",
             f"Excellent effort! Now, let's polish that grammar a bit more...",
-        ],
-        "weather_assistant": [
+        ]
+    elif agent_name == "weather_bot":
+        responses = [
             f"Let me check the current weather conditions for you!",
             f"Based on the latest meteorological data...",
             f"The forecast shows some interesting patterns...",
             f"Perfect question for a weather enthusiast like myself!",
         ]
+    else:
+        # Generic responses by type
+        responses = {
+            "cooking_assistant": ["I'm here to help with your cooking needs!"],
+            "language_teacher": ["I'm here to help with your language learning!"],
+            "weather_assistant": ["I'm here to help with weather information!"]
+        }.get(agent_type, ["I'm here to help!"])
+
+    response_text = random.choice(responses)
+
+    # Simulate processing time
+    processing_time = random.uniform(0.1, 0.3)
+
+    return {
+        "response": response_text,
+        "agent_name": agent_name,
+        "agent_type": agent_type,
+        "processing_time": processing_time,
+        "suggestions": [],
+        "tool_results": [],
+        "context_summary": agent.get("context_summary", {}),
+        "llm_used": False,
+        "success": True
     }
 
-    return random.choice(responses.get(agent_type, ["I'm here to help!"]))
-
-def get_mock_suggestions(agent_type: str) -> List[str]:
-    """Get mock suggestions based on agent type"""
-    suggestions = {
-        "cooking_assistant": [
+def get_mock_suggestions(agent_type: str, agent_name: str = None) -> List[str]:
+    """Get mock suggestions based on agent type and personality"""
+    if agent_name == "weather_wizard":
+        suggestions = [
+            "🔮 Divine tomorrow's weather for me",
+            "⚡ What do the storm spirits say?",
+            "🌟 Reveal the cosmic forecast",
+            "🌪️ Show me the atmospheric magic",
+            "❄️ What weather mysteries await?",
+            "🌈 Cast a weather blessing spell"
+        ]
+    elif agent_name == "chef_marco":
+        suggestions = [
             "What's a good pasta recipe?",
             "How do I make risotto?",
             "Tell me about Italian desserts",
             "What wine pairs with fish?"
-        ],
-        "language_teacher": [
+        ]
+    elif agent_name == "professor_james":
+        suggestions = [
             "Help me with pronunciation",
             "Check my grammar",
             "Explain the difference between 'who' and 'whom'",
             "Practice British accent"
-        ],
-        "weather_assistant": [
+        ]
+    elif agent_name == "weather_bot":
+        suggestions = [
             "What's the weather like today?",
             "Will it rain tomorrow?",
             "Show me the 5-day forecast",
             "Is it good weather for hiking?"
         ]
-    }
-    return random.sample(suggestions.get(agent_type, []), 2)
+    else:
+        # Generic suggestions by type
+        suggestions = {
+            "cooking_assistant": [
+                "What's a good recipe?",
+                "How do I cook this?",
+                "Tell me about ingredients",
+                "What should I make for dinner?"
+            ],
+            "language_teacher": [
+                "Help me with pronunciation",
+                "Check my grammar",
+                "Explain this word",
+                "Practice conversation"
+            ],
+            "weather_assistant": [
+                "What's the weather like?",
+                "Will it rain?",
+                "Show me the forecast",
+                "Is it good weather for outdoor activities?"
+            ]
+        }.get(agent_type, ["How can you help me?", "What can you do?"])
+
+    return random.sample(suggestions, min(2, len(suggestions)))
 
 # API Endpoints
 @app.get("/")
@@ -223,9 +594,24 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    llm_status = {}
+    if REAL_AGENTS_AVAILABLE:
+        try:
+            llm_client = get_llm_client()
+            providers = llm_client.get_available_providers()
+            llm_status = {
+                "available_providers": providers,
+                "default_provider": llm_client.default_provider,
+                "real_agents_loaded": len(real_agents)
+            }
+        except Exception as e:
+            llm_status = {"error": str(e)}
+
     return {
         "status": "healthy",
         "version": "2.0.0-demo",
+        "llm_integration": llm_status,
+        "real_agents_available": REAL_AGENTS_AVAILABLE,
         "modules": mock_modules,
         "performance": {
             "resource_limits": {"max_memory_items_per_agent": 1000, "max_context_length": 4000},
@@ -238,9 +624,103 @@ async def health_check():
         "timestamp": time.time()
     }
 
+@app.get("/llm/status")
+async def llm_status():
+    """Check LLM integration status and test connectivity"""
+    if REAL_AGENTS_AVAILABLE:
+        # Use real agent framework
+        pass  # Original logic would go here
+    elif STANDALONE_LLM_AVAILABLE:
+        # Use standalone LLM client
+        try:
+            llm_client = StandaloneLLMClient()
+            providers = llm_client.get_available_providers()
+
+            # Test each provider
+            provider_tests = {}
+            for provider in providers:
+                test_result = await llm_client.test_connection(provider)
+                provider_tests[provider] = test_result
+
+            return {
+                "status": "available",
+                "message": "Standalone LLM client available",
+                "providers": provider_tests,
+                "default_provider": providers[0] if providers else None,
+                "using_mock_responses": False,
+                "using_standalone_llm": True
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "using_mock_responses": True
+            }
+    else:
+        return {
+            "status": "unavailable",
+            "message": "No LLM integration available",
+            "using_mock_responses": True
+        }
+
+    try:
+        llm_client = get_llm_client()
+        providers = llm_client.get_available_providers()
+
+        if not providers:
+            return {
+                "status": "no_providers",
+                "message": "No LLM providers configured. Set API keys.",
+                "using_mock_responses": True
+            }
+
+        # Test each provider
+        provider_tests = {}
+        for provider in providers:
+            test_result = await llm_client.test_connection(provider)
+            provider_tests[provider] = test_result
+
+        return {
+            "status": "available",
+            "providers": provider_tests,
+            "default_provider": llm_client.default_provider,
+            "real_agents_loaded": list(real_agents.keys()),
+            "using_mock_responses": False
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "using_mock_responses": True
+        }
+
 @app.get("/agents")
 async def list_agents():
-    return {"agents": mock_agents}
+    # Combine real and mock agents
+    all_agents = {}
+
+    # Add real agents
+    if REAL_AGENTS_AVAILABLE:
+        for agent_id, agent in real_agents.items():
+            all_agents[agent_id] = {
+                "name": agent.name,
+                "type": agent.agent_type,
+                "status": "running",
+                "real_agent": True,
+                "llm_enabled": True,
+                "context_summary": agent.context_engine.get_context_summary() if hasattr(agent, 'context_engine') else {}
+            }
+
+    # Add mock agents that don't have real counterparts
+    for agent_id, agent_data in mock_agents.items():
+        if agent_id not in all_agents:
+            agent_data = agent_data.copy()
+            agent_data["real_agent"] = False
+            agent_data["llm_enabled"] = False
+            all_agents[agent_id] = agent_data
+
+    return {"agents": all_agents}
 
 @app.get("/agents/{agent_name}")
 async def get_agent_info(agent_name: str):
@@ -250,29 +730,43 @@ async def get_agent_info(agent_name: str):
 
 @app.post("/agents/{agent_name}/message")
 async def send_message_to_agent(agent_name: str, message_data: MessageRequest):
-    if agent_name not in mock_agents:
+    # Check if agent exists (in real agents or mock agents)
+    agent_exists = (agent_name in real_agents) if REAL_AGENTS_AVAILABLE else (agent_name in mock_agents)
+
+    if not agent_exists:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    agent = mock_agents[agent_name]
-    if agent["status"] != "running":
-        raise HTTPException(status_code=400, detail="Agent is not running")
+    # For mock agents, check status
+    if agent_name in mock_agents:
+        agent = mock_agents[agent_name]
+        if agent["status"] != "running":
+            raise HTTPException(status_code=400, detail="Agent is not running")
 
-    # Simulate processing time
-    processing_start = time.time()
-    time.sleep(random.uniform(0.1, 0.3))  # Simulate processing
-    processing_time = time.time() - processing_start
+    # Generate response using real or mock agent
+    try:
+        response_data = await generate_agent_response(
+            agent_name,
+            message_data.text,
+            message_data.context
+        )
 
-    response_text = generate_agent_response(agent_name, message_data.text)
-    suggestions = get_mock_suggestions(agent["type"])
+        # Add mock suggestions if not provided by real agent
+        if not response_data.get("suggestions"):
+            agent_type = response_data.get("agent_type", "unknown")
+            response_data["suggestions"] = get_mock_suggestions(agent_type, agent_name)
 
-    return MessageResponse(
-        response=response_text,
-        agent_name=agent_name,
-        agent_type=agent["type"],
-        processing_time=processing_time,
-        suggestions=suggestions,
-        context_summary=agent.get("context_summary", {})
-    )
+        return MessageResponse(
+            response=response_data["response"],
+            agent_name=response_data["agent_name"],
+            agent_type=response_data["agent_type"],
+            processing_time=response_data["processing_time"],
+            suggestions=response_data["suggestions"],
+            tool_results=response_data.get("tool_results", []),
+            context_summary=response_data.get("context_summary", {})
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
 
 @app.post("/agents/{agent_name}/start")
 async def start_agent(agent_name: str):
@@ -370,18 +864,23 @@ async def get_collaboration_graph():
         "collaboration_graph": {
             "chef_marco": {
                 "type": "cooking_assistant",
-                "can_collaborate_with": ["weather_bot"],
+                "can_collaborate_with": ["weather_bot", "weather_wizard"],
                 "collaboration_style": "helpful"
             },
             "professor_james": {
                 "type": "language_teacher",
-                "can_collaborate_with": ["chef_marco", "weather_bot"],
+                "can_collaborate_with": ["chef_marco", "weather_bot", "weather_wizard"],
                 "collaboration_style": "educational"
             },
             "weather_bot": {
                 "type": "weather_assistant",
-                "can_collaborate_with": ["chef_marco"],
+                "can_collaborate_with": ["chef_marco", "weather_wizard"],
                 "collaboration_style": "informative"
+            },
+            "weather_wizard": {
+                "type": "weather_assistant",
+                "can_collaborate_with": ["chef_marco", "weather_bot"],
+                "collaboration_style": "mystical"
             }
         }
     }

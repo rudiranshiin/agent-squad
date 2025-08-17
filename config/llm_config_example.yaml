@@ -1,0 +1,53 @@
+# LLM Configuration Example for Agentic Framework
+# This file shows how to configure LLM providers for your agents
+
+# Global LLM Configuration
+llm_config:
+  # Preferred provider: "openai" or "anthropic"
+  preferred_provider: "openai"
+
+  # OpenAI Configuration
+  openai_model: "gpt-4o"  # or "gpt-4", "gpt-3.5-turbo"
+
+  # Anthropic Configuration
+  anthropic_model: "claude-3-5-sonnet-latest"  # or "claude-3-haiku-latest"
+
+  # HubSpot Vault Integration (when available)
+  use_hubspot_vault: false
+
+  # API Keys (use environment variables in production)
+  # openai_api_key: "your-openai-key-here"
+  # anthropic_api_key: "your-anthropic-key-here"
+
+# Agent-specific LLM settings
+agents:
+  language_teacher:
+    llm_config:
+      preferred_provider: "anthropic"  # Claude is often better for educational content
+      max_response_tokens: 800
+      response_temperature: 0.7  # More creative for teaching
+
+  weather_agent:
+    llm_config:
+      preferred_provider: "openai"  # GPT-4o is good for factual information
+      max_response_tokens: 600
+      response_temperature: 0.3  # More focused for weather data
+
+# Environment Variables Setup
+# Set these in your environment or .env file:
+#
+# For OpenAI:
+# export OPENAI_API_KEY="your-openai-api-key"
+# or for HubSpot sandbox:
+# export OPENAI_ENGINEERING_SANDBOX_APIKEY="your-hubspot-openai-key"
+#
+# For Anthropic:
+# export ANTHROPIC_API_KEY="your-anthropic-api-key"
+# or for HubSpot sandbox:
+# export ANTHROPIC_ENGINEERING_SANDBOX_APIKEY="your-hubspot-anthropic-key"
+
+# For HubSpot Users:
+# The framework will automatically use the sandbox keys from HubSpot Vault
+# when available. The expected vault locations are:
+# - openai.engineering.sandbox.apikey
+# - anthropic.engineering.sandbox.apikey
