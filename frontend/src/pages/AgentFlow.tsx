@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Grid,
   Alert,
   CircularProgress,
 } from '@mui/material'
@@ -43,7 +42,7 @@ import 'reactflow/dist/style.css'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'
 import { agentApi } from '../services/api'
-import { Agent, AgentNode, CollaborationEdge } from '../types'
+
 
 // Custom Node Component
 const AgentNodeComponent = ({ data, selected }: { data: any; selected: boolean }) => {
@@ -224,8 +223,8 @@ const FlowContent: React.FC = () => {
         label: name,
         agentType: agent.type,
         status: agent.status,
-        module: agent.module,
-        tools: agent.tools || [],
+        module: (agent as any).module || 'unknown',
+        tools: (agent as any).tools || [],
       },
     }))
 
@@ -235,7 +234,7 @@ const FlowContent: React.FC = () => {
     if (collaborationData?.collaboration_graph) {
       const newEdges: Edge[] = []
       Object.entries(collaborationData.collaboration_graph).forEach(([agentName, agentInfo]) => {
-        agentInfo.can_collaborate_with.forEach((targetAgent) => {
+        agentInfo.can_collaborate_with.forEach((targetAgent: string) => {
           if (agentsData.agents[targetAgent]) {
             newEdges.push({
               id: `${agentName}-${targetAgent}`,
@@ -268,8 +267,11 @@ const FlowContent: React.FC = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (!params.source || !params.target) return
       const edge: Edge = {
-        ...params,
+        id: `${params.source}-${params.target}`,
+        source: params.source,
+        target: params.target,
         type: 'smoothstep',
         animated: true,
         style: { stroke: '#667eea', strokeWidth: 2 },
@@ -279,7 +281,7 @@ const FlowContent: React.FC = () => {
     [setEdges]
   )
 
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedAgent(node.id)
   }, [])
 

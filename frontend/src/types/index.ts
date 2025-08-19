@@ -74,8 +74,10 @@ export interface CollaborationEdge {
   source: string
   target: string
   label?: string
-  type: string
+  type: 'collaboration'
   weight?: number
+  animated?: boolean
+  style?: Record<string, any>
 }
 
 export interface CollaborationGraph {
@@ -115,13 +117,4 @@ export interface AgentNode {
     module?: string
     tools: string[]
   }
-}
-
-export interface CollaborationEdge {
-  id: string
-  source: string
-  target: string
-  type: 'collaboration'
-  animated?: boolean
-  style?: Record<string, any>
 }

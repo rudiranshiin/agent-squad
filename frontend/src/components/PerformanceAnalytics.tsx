@@ -13,7 +13,6 @@ import {
   ListItemIcon,
   Divider,
   IconButton,
-  Tooltip,
   Alert,
   Stack,
   Button,
@@ -67,7 +66,6 @@ interface PerformanceAnalyticsProps {
 
 const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
   conversations = [],
-  currentConfig,
   realTimeMetrics = true,
 }) => {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([])

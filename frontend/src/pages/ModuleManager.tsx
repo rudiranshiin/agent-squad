@@ -23,13 +23,9 @@ import {
 } from '@mui/material'
 import {
   Add,
-  Delete,
   Refresh,
-  PlayArrow,
   Stop,
-  GetApp,
   Extension,
-  Settings,
 } from '@mui/icons-material'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import toast from 'react-hot-toast'

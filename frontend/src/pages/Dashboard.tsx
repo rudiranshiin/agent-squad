@@ -211,9 +211,7 @@ const Dashboard: React.FC = () => {
   const moduleStatus = modulesData?.status || {}
 
   // Calculate performance metrics
-  const avgResponseTime = performanceData?.performance_metrics?.message_processing_time?.avg || 0
-  const memoryUsage = performanceData?.resource_limits?.max_memory_items_per_agent || 0
-  const tokenUtilization = healthData?.performance?.performance_metrics?.context_optimization_time?.avg || 0
+  const avgResponseTime = performanceData?.avg_response_time || 0
 
   return (
     <Box>

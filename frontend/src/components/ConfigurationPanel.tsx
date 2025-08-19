@@ -19,11 +19,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  IconButton,
-  Tooltip,
   Alert,
   Stack,
-  ButtonGroup,
 } from '@mui/material'
 import {
   ExpandMore,
@@ -33,10 +30,8 @@ import {
   Analytics,
   Save,
   RestoreFromTrash,
-  Info,
   Tune,
   Science,
-  CompareArrows,
 } from '@mui/icons-material'
 
 export interface LLMConfig {
