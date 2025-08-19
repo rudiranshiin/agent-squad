@@ -28,7 +28,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { systemApi } from '../services/api'
 
-const drawerWidth = 280
+const drawerWidth = 260
 
 interface LayoutProps {
   children: React.ReactNode
@@ -83,177 +83,159 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     },
   ]
 
-  const drawer = (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(15, 15, 15, 0.98) 100%)',
-      }}
-    >
-      {/* Logo & Brand */}
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <Avatar
-            sx={{
-              width: 48,
-              height: 48,
-              background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
-              fontWeight: 700,
-              fontSize: '1.25rem',
-              boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)',
-            }}
-          >
-            A
-          </Avatar>
-          <Box>
-            <Typography
-              variant="h5"
+      const drawer = (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'linear-gradient(180deg, #0A0A0A 0%, #111111 100%)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+        }}
+      >
+        {/* Logo & Brand */}
+        <Box sx={{ p: 3, pb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+            <Avatar
               sx={{
-                fontWeight: 800,
-                lineHeight: 1.2,
-                background: 'linear-gradient(135deg, #FFFFFF 0%, #A1A1AA 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                color: 'transparent',
+                width: 40,
+                height: 40,
+                background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
+                fontWeight: 700,
+                fontSize: '1.1rem',
+                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
               }}
             >
-              Agentic
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 500,
-                fontSize: '0.75rem',
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
-            >
-              AI Framework
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
-      <Divider sx={{ mx: 3, opacity: 0.1 }} />
-
-      {/* Navigation */}
-      <Box sx={{ px: 2, py: 2, flexGrow: 1 }}>
-        <Typography
-          variant="caption"
-          sx={{
-            px: 2,
-            py: 1,
-            color: 'text.secondary',
-            fontWeight: 600,
-            fontSize: '0.7rem',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}
-        >
-          Navigation
-        </Typography>
-        <List sx={{ mt: 1 }}>
-          {menuItems.map((item) => (
-            <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
-              <ListItemButton
-                selected={location.pathname === item.path}
-                onClick={() => navigate(item.path)}
+              A
+            </Avatar>
+            <Box>
+              <Typography
+                variant="h6"
                 sx={{
-                  borderRadius: 3,
-                  mx: 1,
-                  py: 2,
-                  px: 3,
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&.Mui-selected': {
-                    background: `linear-gradient(135deg, ${item.color}15 0%, ${item.color}08 100%)`,
-                    border: `1px solid ${item.color}30`,
-                    color: item.color,
-                    '&:hover': {
-                      background: `linear-gradient(135deg, ${item.color}20 0%, ${item.color}10 100%)`,
-                    },
-                    '&::before': {
-                      content: '""',
-                      position: 'absolute',
-                      left: 0,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 3,
-                      height: 20,
-                      background: item.color,
-                      borderRadius: '0 2px 2px 0',
-                    },
-                  },
-                  '&:hover': {
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    transform: 'translateX(2px)',
-                  },
-                  position: 'relative',
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: 'white',
+                  fontSize: '1.1rem',
                 }}
               >
-                <ListItemIcon
-                  sx={{
-                    color: location.pathname === item.path ? item.color : 'text.secondary',
-                    minWidth: 40,
-                    transition: 'color 0.2s ease',
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Typography
-                      variant="body2"
-                      fontWeight={location.pathname === item.path ? 600 : 500}
-                      sx={{ fontSize: '0.875rem' }}
-                    >
-                      {item.text}
-                    </Typography>
-                  }
-                  secondary={
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: 'text.secondary',
-                        opacity: 0.7,
-                        fontSize: '0.7rem',
-                        mt: 0.5,
-                      }}
-                    >
-                      {item.description}
-                    </Typography>
-                  }
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-
-      {/* System Status */}
-      <Box sx={{ p: 3, mt: 'auto' }}>
-        <Divider sx={{ mb: 3, opacity: 0.1 }} />
-        {healthData && (
-          <Box
-            sx={{
-              p: 3,
-              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              borderRadius: 3,
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                Agentic
+              </Typography>
               <Typography
                 variant="caption"
                 sx={{
-                  fontWeight: 600,
+                  color: 'text.secondary',
+                  fontWeight: 500,
                   fontSize: '0.7rem',
                   letterSpacing: '0.05em',
                   textTransform: 'uppercase',
-                  color: 'text.secondary',
+                  opacity: 0.7,
+                }}
+              >
+                AI Framework
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        <Divider sx={{ mx: 2, opacity: 0.08 }} />
+
+              {/* Navigation */}
+        <Box sx={{ px: 1, py: 2, flexGrow: 1 }}>
+          <List sx={{ px: 1 }}>
+            {menuItems.map((item) => (
+              <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+                <ListItemButton
+                  selected={location.pathname === item.path}
+                  onClick={() => navigate(item.path)}
+                  sx={{
+                    borderRadius: 2,
+                    py: 1.5,
+                    px: 2,
+                    transition: 'all 0.15s ease',
+                    position: 'relative',
+                    '&.Mui-selected': {
+                      background: `linear-gradient(135deg, ${item.color}12 0%, ${item.color}06 100%)`,
+                      color: item.color,
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        left: 0,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 3,
+                        height: 16,
+                        background: item.color,
+                        borderRadius: '0 2px 2px 0',
+                      },
+                      '&:hover': {
+                        background: `linear-gradient(135deg, ${item.color}18 0%, ${item.color}08 100%)`,
+                      },
+                    },
+                    '&:hover': {
+                      background: 'rgba(255, 255, 255, 0.03)',
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      color: location.pathname === item.path ? item.color : 'rgba(255, 255, 255, 0.6)',
+                      minWidth: 36,
+                      transition: 'color 0.15s ease',
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography
+                        variant="body2"
+                        fontWeight={location.pathname === item.path ? 600 : 500}
+                        sx={{
+                          fontSize: '0.875rem',
+                          color: location.pathname === item.path ? item.color : 'white',
+                        }}
+                      >
+                        {item.text}
+                      </Typography>
+                    }
+                    secondary={
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          fontSize: '0.7rem',
+                          mt: 0.25,
+                        }}
+                      >
+                        {item.description}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
+      {/* System Status */}
+      <Box sx={{ p: 2, mt: 'auto' }}>
+        <Divider sx={{ mb: 2, opacity: 0.08 }} />
+        {healthData && (
+          <Box
+            sx={{
+              p: 2,
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.04)',
+              borderRadius: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 500,
+                  fontSize: '0.7rem',
+                  color: 'rgba(255, 255, 255, 0.6)',
                 }}
               >
                 System Status
@@ -263,9 +245,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 size="small"
                 color={healthData.status === 'healthy' ? 'success' : 'warning'}
                 sx={{
-                  height: 22,
+                  height: 20,
                   fontSize: '0.65rem',
-                  fontWeight: 600,
+                  fontWeight: 500,
                 }}
               />
             </Box>
@@ -273,8 +255,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Typography
                 variant="caption"
                 sx={{
-                  color: 'text.secondary',
-                  fontSize: '0.75rem',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.7rem',
                 }}
               >
                 v{healthData.version}
@@ -286,12 +268,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 sx={{
                   '& .MuiBadge-badge': {
                     fontSize: '0.6rem',
-                    height: 16,
-                    minWidth: 16,
+                    height: 14,
+                    minWidth: 14,
                   },
                 }}
               >
-                <ModuleIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <ModuleIcon sx={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.5)' }} />
               </Badge>
             </Box>
           </Box>
@@ -301,20 +283,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', background: '#0A0A0A' }}>
       {/* App Bar */}
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           ml: { sm: `${drawerWidth}px` },
-          background: 'rgba(10, 10, 10, 0.85)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 1px 20px rgba(0, 0, 0, 0.1)',
+          background: 'rgba(10, 10, 10, 0.9)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 70 }, py: 1 }}>
+        <Toolbar sx={{ minHeight: 64, px: 3 }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -327,14 +310,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <Box sx={{ flexGrow: 1 }}>
             <Typography
-              variant="h5"
+              variant="h6"
               sx={{
-                fontWeight: 700,
-                fontSize: '1.25rem',
-                background: 'linear-gradient(135deg, #FFFFFF 0%, #A1A1AA 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                color: 'transparent',
+                fontWeight: 600,
+                fontSize: '1.1rem',
+                color: 'white',
+                mb: 0.25,
               }}
             >
               {menuItems.find(item => item.path === location.pathname)?.text || 'Agentic Framework'}
@@ -342,10 +323,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Typography
               variant="body2"
               sx={{
-                color: 'text.secondary',
-                opacity: 0.8,
-                fontSize: '0.875rem',
-                fontWeight: 400,
+                color: 'rgba(255, 255, 255, 0.6)',
+                fontSize: '0.8rem',
               }}
             >
               {menuItems.find(item => item.path === location.pathname)?.description || 'Enhanced AI Agent Framework 2.0'}
@@ -354,27 +333,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Header Status */}
           {healthData && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Chip
                 label={`v${healthData.version}`}
-                size="small"
                 variant="outlined"
+                size="small"
                 sx={{
-                  color: 'white',
-                  borderColor: 'rgba(255, 255, 255, 0.2)',
-                  fontSize: '0.75rem',
-                  height: 28,
-                  fontWeight: 500,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  fontSize: '0.7rem',
+                  height: 24,
                 }}
               />
               <Chip
-                label={healthData.status}
-                size="small"
+                label={healthData.status === 'healthy' ? 'Healthy' : 'Warning'}
                 color={healthData.status === 'healthy' ? 'success' : 'warning'}
+                size="small"
                 sx={{
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 28,
+                  fontSize: '0.7rem',
+                  height: 24,
                 }}
               />
             </Box>
@@ -401,11 +378,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              background: 'linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(15, 15, 15, 0.98) 100%)',
-              backdropFilter: 'blur(20px) saturate(180%)',
+              background: 'linear-gradient(180deg, #0A0A0A 0%, #111111 100%)',
               border: 'none',
-              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-              boxShadow: '1px 0 0 rgba(255, 255, 255, 0.05) inset',
             },
           }}
         >
@@ -420,11 +394,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              background: 'linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(15, 15, 15, 0.98) 100%)',
-              backdropFilter: 'blur(20px) saturate(180%)',
+              background: 'linear-gradient(180deg, #0A0A0A 0%, #111111 100%)',
               border: 'none',
-              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-              boxShadow: '1px 0 0 rgba(255, 255, 255, 0.05) inset',
             },
           }}
           open
@@ -433,20 +404,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Drawer>
       </Box>
 
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 2, sm: 4 },
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          minHeight: '100vh',
-          background: 'radial-gradient(ellipse at top left, rgba(59, 130, 246, 0.05) 0%, transparent 50%), radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.05) 0%, transparent 50%), linear-gradient(180deg, rgba(10, 10, 10, 1) 0%, rgba(15, 15, 15, 1) 100%)',
-        }}
-      >
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 70 } }} />
-        {children}
-      </Box>
+              {/* Main Content */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            width: { sm: `calc(100% - ${drawerWidth}px)` },
+            minHeight: '100vh',
+            background: '#0A0A0A',
+          }}
+        >
+          <Toolbar sx={{ minHeight: 64 }} />
+          {children}
+        </Box>
     </Box>
   )
 }
