@@ -4,9 +4,7 @@ uvicorn[standard]==0.24.0
 pydantic==2.5.0
 python-multipart==0.0.6
 
-# Context Engineering & Memory
-sentence-transformers==2.2.2
-chromadb==0.4.18
+# Context Engineering
 tiktoken==0.5.2
 
 # Basic utilities

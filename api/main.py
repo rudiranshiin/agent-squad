@@ -228,7 +228,7 @@ async def get_agent_info(agent_name: str):
         "personality": agent.personality,
         "status": "running" if getattr(agent, '_is_running', False) else "stopped",
         "context_summary": agent.context_engine.get_context_summary(),
-        "memory_stats": await agent.memory_manager.get_stats() if hasattr(agent.memory_manager, 'get_stats') else {},
+
         "tools": agent.tool_registry.list_tools()
     }
 

@@ -48,15 +48,7 @@ tools:
       language: "en-GB"
       include_etymology: true
 
-memory_config:
-  remember_conversations: true
-  context_window: 10
-  importance_threshold: 0.6
-  focus_on:
-    - "student_preferences"
-    - "learning_goals"
-    - "pronunciation_challenges"
-    - "grammar_mistakes"
+
 
 collaboration:
   can_collaborate_with: ["chinese_teacher", "weather_agent"]
@@ -65,7 +57,7 @@ collaboration:
 
 max_context_length: 4000
 max_context_items: 120
-max_memories: 1500
+
 
 teaching_preferences:
   methodology: "communicative_approach"

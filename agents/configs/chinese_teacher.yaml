@@ -57,16 +57,7 @@ tools:
       particle_analysis: true
       sentence_structure: true
 
-memory_config:
-  remember_conversations: true
-  context_window: 12
-  importance_threshold: 0.6
-  focus_on:
-    - "character_learning_progress"
-    - "tone_difficulties"
-    - "cultural_questions"
-    - "grammar_patterns"
-    - "vocabulary_level"
+
 
 collaboration:
   can_collaborate_with: ["british_teacher", "weather_agent"]
@@ -75,7 +66,7 @@ collaboration:
 
 max_context_length: 4500
 max_context_items: 130
-max_memories: 1500
+
 
 teaching_preferences:
   methodology: "communicative_with_traditional_elements"

@@ -23,10 +23,7 @@ openai==1.3.7
 anthropic==0.7.7
 tiktoken==0.5.1
 
-# Memory and Vector Storage
-chromadb==0.4.17
-sentence-transformers==2.2.2
-numpy==1.24.4
+
 
 # Async and Concurrency
 asyncio-throttle==1.0.2

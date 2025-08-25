@@ -187,7 +187,7 @@ class AgentModule(ABC):
             agent_status[name] = {
                 "type": agent.agent_type,
                 "running": getattr(agent, '_is_running', False),
-                "memory_items": len(agent.memory_manager.collection.get()["ids"]) if hasattr(agent.memory_manager, 'collection') else 0,
+
                 "context_items": len(agent.context_engine.context_items)
             }
 
@@ -446,13 +446,7 @@ class ScalabilityOptimizer:
         if len(agent.context_engine.context_items) > self.resource_limits["max_context_items_per_agent"]:
             agent.context_engine._optimize_context()
 
-        # Optimize memory manager
-        if hasattr(agent.memory_manager, 'collection'):
-            memory_count = len(agent.memory_manager.collection.get()["ids"])
-            if memory_count > self.resource_limits["max_memory_items_per_agent"]:
-                await agent.memory_manager.cleanup_old_memories(
-                    keep_count=self.resource_limits["max_memory_items_per_agent"] // 2
-                )
+
 
     def get_performance_report(self) -> Dict[str, Any]:
         """Generate a performance report."""
