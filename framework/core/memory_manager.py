@@ -91,7 +91,8 @@ class MemoryManager:
         self,
         user_message: str,
         agent_response: Dict[str, Any],
-        importance: float = None
+        importance: float = None,
+        user_id: str = None
     ) -> str:
         """Store a conversation interaction in memory."""
         interaction_content = f"User: {user_message}\nAgent: {agent_response.get('response', '')}"
@@ -112,7 +113,8 @@ class MemoryManager:
             metadata={
                 "user_message": user_message,
                 "agent_response": agent_response,
-                "agent_name": self.agent_name
+                "agent_name": self.agent_name,
+                "user_id": user_id
             },
             importance=importance
         )
@@ -181,17 +183,20 @@ class MemoryManager:
         query: str,
         max_results: int = 5,
         min_relevance: float = 0.3,
-        memory_types: Optional[List[str]] = None
+        memory_types: Optional[List[str]] = None,
+        user_id: str = None
     ) -> List[MemoryItem]:
         """Retrieve memories relevant to the query using semantic search."""
         try:
             # Generate query embedding
             query_embedding = self.embedding_model.encode([query])[0].tolist()
 
-            # Build filter for memory types
+            # Build filter for memory types and user_id
             where_clause = {}
             if memory_types:
                 where_clause["memory_type"] = {"$in": memory_types}
+            if user_id:
+                where_clause["user_id"] = user_id
 
             # Search in ChromaDB
             results = self.collection.query(
@@ -204,9 +209,12 @@ class MemoryManager:
             memories = []
             if results["ids"] and results["ids"][0]:
                 for i, memory_id in enumerate(results["ids"][0]):
-                    # Calculate relevance score (1 - normalized distance)
+                    # Calculate relevance score
+                    # ChromaDB returns cosine distance, convert to similarity
                     distance = results["distances"][0][i]
-                    relevance_score = max(0, 1 - distance)
+                    # For cosine distance, similarity = 1 - (distance / 2)
+                    # This normalizes the range to [0, 1] where 1 is most similar
+                    relevance_score = max(0, 1 - (distance / 2))
 
                     if relevance_score >= min_relevance:
                         metadata = results["metadatas"][0][i]

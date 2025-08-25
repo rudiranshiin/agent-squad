@@ -158,7 +158,8 @@ class BaseAgent(ABC):
             # Retrieve relevant memories
             memories = await self.memory_manager.retrieve_relevant_memories(
                 message,
-                max_results=self.config.get("memory_config", {}).get("context_window", 5)
+                max_results=self.config.get("memory_config", {}).get("context_window", 5),
+                user_id=user_id
             )
 
             for memory in memories:
@@ -179,7 +180,7 @@ class BaseAgent(ABC):
 
             # Store interaction in memory
             if self.config.get("memory_config", {}).get("remember_conversations", True):
-                await self.memory_manager.store_interaction(message, final_response)
+                await self.memory_manager.store_interaction(message, final_response, user_id=user_id)
 
             # Add processing metadata
             final_response["processing_time"] = time.time() - start_time

@@ -258,7 +258,7 @@ class AgentCreateRequest(BaseModel):
     config: Dict[str, Any]
 
 # Helper Functions
-async def generate_agent_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+async def generate_agent_response(agent_name: str, message: str, context: Dict[str, Any] = None, user_id: str = None) -> Dict[str, Any]:
     """Generate response using real agent if available, otherwise use mock"""
     context = context or {}
 
@@ -266,7 +266,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     if REAL_AGENTS_AVAILABLE and agent_name in real_agents:
         try:
             agent = real_agents[agent_name]
-            response = await agent.process_message(message, context)
+            response = await agent.process_message(message, context, user_id)
 
             return {
                 "response": response.get("response", "I apologize, but I couldn't generate a response."),
@@ -286,7 +286,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     # Try standalone LLM client
     if STANDALONE_LLM_AVAILABLE:
         try:
-            return await _generate_standalone_llm_response(agent_name, message, context)
+            return await _generate_standalone_llm_response(agent_name, message, context, user_id)
         except Exception as e:
             print(f"❌ Standalone LLM failed: {e}")
             # Fall back to mock response
@@ -294,7 +294,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     # Use mock response
     return _generate_mock_response(agent_name, message)
 
-async def _generate_standalone_llm_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+async def _generate_standalone_llm_response(agent_name: str, message: str, context: Dict[str, Any] = None, user_id: str = None) -> Dict[str, Any]:
     """Generate response using standalone LLM client."""
     import time
     start_time = time.time()
@@ -764,7 +764,8 @@ async def send_message_to_agent(agent_name: str, message_data: MessageRequest):
         response_data = await generate_agent_response(
             agent_name,
             message_data.text,
-            message_data.context
+            message_data.context,
+            message_data.user_id
         )
 
         # Add mock suggestions if not provided by real agent
