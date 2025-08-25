@@ -1,4 +1,4 @@
-name: "Professor James"
+name: "professor_james"
 type: "language_teacher"
 implementation: "agents.implementations.language_teacher.LanguageTeacherAgent"
 

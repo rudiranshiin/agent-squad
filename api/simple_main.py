@@ -67,9 +67,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize real agents if available
+# Initialize real agents (will be loaded during startup)
 real_agents = {}
-if REAL_AGENTS_AVAILABLE:
+registry = None
+
+async def load_real_agents():
+    """Load real agents during startup."""
+    global real_agents, registry
+
+    if not REAL_AGENTS_AVAILABLE:
+        return
+
     try:
         registry = AgentRegistry()
         config_dir = project_root / "agents" / "configs"
@@ -77,17 +85,19 @@ if REAL_AGENTS_AVAILABLE:
         # Load available agent configs
         available_configs = {
             "professor_james": "british_teacher.yaml",
-            "teacher_mei": "chinese_teacher.yaml",
-            "weather_assistant": "weather_agent.yaml"
+            "teacher_li": "chinese_teacher.yaml",
+            "weather_bot": "weather_agent.yaml"
         }
 
         for agent_id, config_file in available_configs.items():
             config_path = config_dir / config_file
             if config_path.exists():
                 try:
-                    agent = registry.load_agent(str(config_path))
+                    agent = await registry.create_agent_from_config(str(config_path))
+                    # Start the agent automatically
+                    await registry.start_agent(agent.name)
                     real_agents[agent_id] = agent
-                    print(f"✅ Loaded real agent: {agent_id}")
+                    print(f"✅ Loaded and started real agent: {agent_id}")
                 except Exception as e:
                     print(f"❌ Failed to load agent {agent_id}: {e}")
 
@@ -697,24 +707,29 @@ async def llm_status():
 
 @app.get("/agents")
 async def list_agents():
-    # Combine real and mock agents
     all_agents = {}
 
-    # Add real agents
-    if REAL_AGENTS_AVAILABLE:
+    # Add real agents if available
+    if REAL_AGENTS_AVAILABLE and real_agents:
         for agent_id, agent in real_agents.items():
+            # Check if agent is actually running in the registry
+            is_running = agent.name in registry._running_agents if registry else False
             all_agents[agent_id] = {
                 "name": agent.name,
                 "type": agent.agent_type,
-                "status": "running",
+                "status": "running" if is_running else "stopped",
                 "real_agent": True,
                 "llm_enabled": True,
-                "context_summary": agent.context_engine.get_context_summary() if hasattr(agent, 'context_engine') else {}
+                "context_summary": agent.context_engine.get_context_summary() if hasattr(agent, 'context_engine') else {},
+                "personality": getattr(agent, 'personality', {}),
+                "tools": agent.tool_registry.list_tools() if hasattr(agent, 'tool_registry') else [],
+                "memory_stats": {"conversations": 0, "facts": 0, "preferences": 0}  # Placeholder
             }
-
-    # Add mock agents that don't have real counterparts
-    for agent_id, agent_data in mock_agents.items():
-        if agent_id not in all_agents:
+        print(f"✅ Returning {len(all_agents)} real agents: {list(all_agents.keys())}")
+    else:
+        # Only show mock agents if no real agents are available
+        print("⚠️  No real agents available, showing mock agents")
+        for agent_id, agent_data in mock_agents.items():
             agent_data = agent_data.copy()
             agent_data["real_agent"] = False
             agent_data["llm_enabled"] = False
@@ -730,17 +745,19 @@ async def get_agent_info(agent_name: str):
 
 @app.post("/agents/{agent_name}/message")
 async def send_message_to_agent(agent_name: str, message_data: MessageRequest):
-    # Check if agent exists (in real agents or mock agents)
-    agent_exists = (agent_name in real_agents) if REAL_AGENTS_AVAILABLE else (agent_name in mock_agents)
-
-    if not agent_exists:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    # For mock agents, check status
-    if agent_name in mock_agents:
+    # Check if agent exists and is running
+    if REAL_AGENTS_AVAILABLE and real_agents and agent_name in real_agents:
+        # Real agent - check if it's running in the registry
+        real_agent = real_agents[agent_name]
+        if registry and real_agent.name not in registry._running_agents:
+            raise HTTPException(status_code=400, detail="Agent is not running")
+    elif agent_name in mock_agents:
+        # Mock agent - check status
         agent = mock_agents[agent_name]
         if agent["status"] != "running":
             raise HTTPException(status_code=400, detail="Agent is not running")
+    else:
+        raise HTTPException(status_code=404, detail="Agent not found")
 
     # Generate response using real or mock agent
     try:
@@ -882,8 +899,16 @@ async def get_collaboration_graph():
                 "can_collaborate_with": ["chef_marco", "weather_bot"],
                 "collaboration_style": "mystical"
             }
-        }
-    }
+            }
+}
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Load real agents on startup."""
+    print("🚀 Starting Agentic Framework API...")
+    await load_real_agents()
+    print(f"✅ Startup complete. Real agents loaded: {len(real_agents)}")
 
 if __name__ == "__main__":
     import uvicorn

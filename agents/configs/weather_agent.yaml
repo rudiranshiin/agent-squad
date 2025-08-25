@@ -1,4 +1,4 @@
-name: "WeatherBot"
+name: "weather_bot"
 type: "weather_assistant"
 implementation: "agents.implementations.weather_agent.WeatherAgent"
 
