@@ -297,7 +297,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ minHeight: 64, px: 3 }}>
+        <Toolbar sx={{ minHeight: 48, px: 3 }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -409,13 +409,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           component="main"
           sx={{
             flexGrow: 1,
-            p: 3,
+            p: 2,
             width: { sm: `calc(100% - ${drawerWidth}px)` },
             minHeight: '100vh',
             background: '#0A0A0A',
           }}
         >
-          <Toolbar sx={{ minHeight: 64 }} />
+          <Toolbar sx={{ minHeight: 48 }} />
           {children}
         </Box>
     </Box>

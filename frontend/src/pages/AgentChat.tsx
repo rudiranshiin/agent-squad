@@ -108,7 +108,7 @@ const AgentChat: React.FC = () => {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [testSessions, setTestSessions] = useState<TestSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-  const [showMetrics, setShowMetrics] = useState(true)
+
   const [messageCounter, setMessageCounter] = useState(0)
   const [collaborationMode, setCollaborationMode] = useState(false)
   const [collaboratingAgents, setCollaboratingAgents] = useState<string[]>([])
@@ -370,117 +370,67 @@ const AgentChat: React.FC = () => {
         transition: 'flex 0.3s ease-in-out',
         borderRight: toolSidebarOpen ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
       }}>
-        {/* Clean Header */}
-        <Box sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-            <Box>
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 700,
-                mb: 1,
-                color: 'white',
-              }}
-            >
-              AI Testing Studio
-            </Typography>
-            <Typography
-              variant="body1"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 400,
-              }}
-            >
-              Configure, test, and analyze your AI agents with real-time performance monitoring
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<Settings />}
-              onClick={() => setConfigPanelOpen(true)}
-            >
-              Configure
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Analytics />}
-              onClick={() => setAnalyticsOpen(true)}
-            >
-              Analytics
-            </Button>
+                {/* Metrics & Controls Header */}
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Inline Metrics */}
+            <Box sx={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="primary">
+                  {metrics.avgTime ? `${metrics.avgTime.toFixed(1)}s` : '0s'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Response
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="secondary">
+                  {metrics.tokens.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Tokens
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="success.main">
+                  ${metrics.cost.toFixed(4)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Cost
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="warning.main">
+                  {metrics.messages}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Messages
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Settings />}
+                onClick={() => setConfigPanelOpen(true)}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Configure
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<Analytics />}
+                onClick={() => setAnalyticsOpen(true)}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Analytics
+              </Button>
+            </Box>
           </Box>
         </Box>
-
-        {/* Simplified Metrics */}
-        <Collapse in={showMetrics}>
-          <Card
-            sx={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-            }}
-          >
-            <CardContent sx={{ py: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', gap: 6 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="primary">
-                      {metrics.avgTime ? `${metrics.avgTime.toFixed(1)}s` : '0s'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Avg Response
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="secondary">
-                      {metrics.tokens.toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Tokens Used
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="success.main">
-                      ${metrics.cost.toFixed(4)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Cost
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="warning.main">
-                      {metrics.messages}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Messages
-                    </Typography>
-                  </Box>
-                </Box>
-                <IconButton
-                  onClick={() => setShowMetrics(false)}
-                  size="small"
-                >
-                  <ExpandLess />
-                </IconButton>
-              </Box>
-            </CardContent>
-          </Card>
-        </Collapse>
-
-        {!showMetrics && (
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <IconButton
-              onClick={() => setShowMetrics(true)}
-              sx={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                '&:hover': { background: 'rgba(255, 255, 255, 0.1)' }
-              }}
-            >
-              <ExpandMore />
-            </IconButton>
-          </Box>
-        )}
-      </Box>
 
       {/* Main Chat Container */}
       <Card sx={{
@@ -491,7 +441,7 @@ const AgentChat: React.FC = () => {
         border: '1px solid rgba(255, 255, 255, 0.1)',
       }}>
         {/* Agent Selection Header */}
-        <CardContent sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', py: 2 }}>
+        <CardContent sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <FormControl sx={{ minWidth: 250 }}>
               <InputLabel>Select Agent</InputLabel>
@@ -585,7 +535,7 @@ const AgentChat: React.FC = () => {
           sx={{
             flexGrow: 1,
             overflowY: 'auto',
-            p: 3,
+            p: 2,
           }}
         >
           {chatHistory.length === 0 ? (
@@ -927,7 +877,7 @@ const AgentChat: React.FC = () => {
         {/* Input Area */}
         <Box
           sx={{
-            p: 3,
+            p: 2,
             borderTop: '1px solid rgba(255, 255, 255, 0.1)',
             background: 'rgba(15, 15, 15, 0.8)',
           }}
