@@ -609,7 +609,7 @@ const FlowContent: React.FC = () => {
             strokeWidth: 3,
             strokeDasharray: '5,5',
           }}
-          connectionLineType="smoothstep"
+          connectionLineType={'smoothstep' as any}
           style={{
             backgroundColor: 'transparent',
           }}

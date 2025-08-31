@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import {
   Box,
   Card,
@@ -24,6 +25,10 @@ import {
   Alert,
   Tooltip,
   Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import {
   Send,
@@ -44,6 +49,33 @@ import { agentApi } from '../services/api'
 import ConfigurationPanel, { LLMConfig, TestingConfig } from '../components/ConfigurationPanel'
 import PerformanceAnalytics from '../components/PerformanceAnalytics'
 
+interface ToolResult {
+  tools_executed?: string[]
+  analysis_type?: string
+  symbols_analyzed?: string[]
+  data_points?: number
+  data_summary?: string
+  indicators_calculated?: string[]
+  analysis_summary?: string
+  sentiment_score?: number | string
+  articles_analyzed?: number
+  sentiment_summary?: string
+  risk_level?: string
+  volatility?: string
+  risk_factors?: string[]
+  detailed_tool_executions?: Array<{
+    tool_name: string
+    parameters: any
+    success: boolean
+    execution_time: number
+    result_summary: string
+    error?: string
+    result_data?: any
+    result_preview?: string
+    result_size?: number
+  }>
+}
+
 interface ChatMessage {
   id: string
   sender: 'user' | 'agent'
@@ -55,6 +87,7 @@ interface ChatMessage {
   tokens_used?: number
   cost?: number
   config_used?: Partial<LLMConfig>
+  tool_results?: ToolResult[]
 }
 
 interface TestSession {
@@ -75,13 +108,20 @@ const AgentChat: React.FC = () => {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [testSessions, setTestSessions] = useState<TestSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-  const [showMetrics, setShowMetrics] = useState(true)
+
   const [messageCounter, setMessageCounter] = useState(0)
   const [collaborationMode, setCollaborationMode] = useState(false)
   const [collaboratingAgents, setCollaboratingAgents] = useState<string[]>([])
+  const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set())
+  const [selectedToolExecution, setSelectedToolExecution] = useState<any>(null)
+  const [toolSidebarOpen, setToolSidebarOpen] = useState(false)
+  const [expandedFullResponse, setExpandedFullResponse] = useState(false)
+  const [fullResponseData, setFullResponseData] = useState<any>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+
+
 
   const { data: agentsData } = useQuery(
     'agents',
@@ -91,7 +131,7 @@ const AgentChat: React.FC = () => {
     }
   )
 
-  const { data: collaborationData } = useQuery(
+  useQuery(
     'collaboration-graph',
     agentApi.getCollaborationGraph,
     {
@@ -130,6 +170,7 @@ const AgentChat: React.FC = () => {
           tokens_used: response.tokens_used || Math.floor(Math.random() * 500) + 100,
           cost: response.cost || Math.random() * 0.01,
           config_used: currentConfig?.llm,
+          tool_results: response.tool_results,
         }
         setChatHistory(prev => [...prev, agentMessage])
         setMessageCounter(prev => prev + 1)
@@ -320,118 +361,76 @@ const AgentChat: React.FC = () => {
   }
 
   return (
-    <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Clean Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-          <Box>
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 700,
-                mb: 1,
-                color: 'white',
-              }}
-            >
-              AI Testing Studio
-            </Typography>
-            <Typography
-              variant="body1"
-              sx={{
-                color: 'text.secondary',
-                fontWeight: 400,
-              }}
-            >
-              Configure, test, and analyze your AI agents with real-time performance monitoring
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<Settings />}
-              onClick={() => setConfigPanelOpen(true)}
-            >
-              Configure
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Analytics />}
-              onClick={() => setAnalyticsOpen(true)}
-            >
-              Analytics
-            </Button>
+    <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex' }}>
+      {/* Main Chat Area */}
+      <Box sx={{
+        flex: toolSidebarOpen ? '1 1 60%' : '1 1 100%',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'flex 0.3s ease-in-out',
+        borderRight: toolSidebarOpen ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
+      }}>
+                {/* Metrics & Controls Header */}
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Inline Metrics */}
+            <Box sx={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="primary">
+                  {metrics.avgTime ? `${metrics.avgTime.toFixed(1)}s` : '0s'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Response
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="secondary">
+                  {metrics.tokens.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Tokens
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="success.main">
+                  ${metrics.cost.toFixed(4)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Cost
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" fontWeight={600} color="warning.main">
+                  {metrics.messages}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  Messages
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Settings />}
+                onClick={() => setConfigPanelOpen(true)}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Configure
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<Analytics />}
+                onClick={() => setAnalyticsOpen(true)}
+                sx={{ fontSize: '0.8rem' }}
+              >
+                Analytics
+              </Button>
+            </Box>
           </Box>
         </Box>
-
-        {/* Simplified Metrics */}
-        <Collapse in={showMetrics}>
-          <Card
-            sx={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-            }}
-          >
-            <CardContent sx={{ py: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', gap: 6 }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="primary">
-                      {metrics.avgTime ? `${metrics.avgTime.toFixed(1)}s` : '0s'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Avg Response
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="secondary">
-                      {metrics.tokens.toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Tokens Used
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="success.main">
-                      ${metrics.cost.toFixed(4)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Cost
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" fontWeight={700} color="warning.main">
-                      {metrics.messages}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Messages
-                    </Typography>
-                  </Box>
-                </Box>
-                <IconButton
-                  onClick={() => setShowMetrics(false)}
-                  size="small"
-                >
-                  <ExpandLess />
-                </IconButton>
-              </Box>
-            </CardContent>
-          </Card>
-        </Collapse>
-
-        {!showMetrics && (
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <IconButton
-              onClick={() => setShowMetrics(true)}
-              sx={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                '&:hover': { background: 'rgba(255, 255, 255, 0.1)' }
-              }}
-            >
-              <ExpandMore />
-            </IconButton>
-          </Box>
-        )}
-      </Box>
 
       {/* Main Chat Container */}
       <Card sx={{
@@ -442,7 +441,7 @@ const AgentChat: React.FC = () => {
         border: '1px solid rgba(255, 255, 255, 0.1)',
       }}>
         {/* Agent Selection Header */}
-        <CardContent sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', py: 2 }}>
+        <CardContent sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <FormControl sx={{ minWidth: 250 }}>
               <InputLabel>Select Agent</InputLabel>
@@ -536,7 +535,7 @@ const AgentChat: React.FC = () => {
           sx={{
             flexGrow: 1,
             overflowY: 'auto',
-            p: 3,
+            p: 2,
           }}
         >
           {chatHistory.length === 0 ? (
@@ -595,9 +594,71 @@ const AgentChat: React.FC = () => {
                       borderRadius: 3,
                     }}
                   >
-                    <Typography variant="body1" sx={{ mb: 2, lineHeight: 1.6 }}>
-                      {msg.content}
-                    </Typography>
+                    <Box sx={{ mb: 2, lineHeight: 1.6 }}>
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => (
+                            <Typography variant="h4" sx={{ fontWeight: 600, mb: 2, color: 'primary.main' }}>
+                              {children}
+                            </Typography>
+                          ),
+                          h2: ({ children }) => (
+                            <Typography variant="h5" sx={{ fontWeight: 600, mb: 1.5, mt: 2, color: 'secondary.main' }}>
+                              {children}
+                            </Typography>
+                          ),
+                          h3: ({ children }) => (
+                            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, mt: 1.5 }}>
+                              {children}
+                            </Typography>
+                          ),
+                          p: ({ children }) => (
+                            <Typography variant="body1" sx={{ mb: 1.5, lineHeight: 1.6 }}>
+                              {children}
+                            </Typography>
+                          ),
+                          strong: ({ children }) => (
+                            <Typography component="span" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                              {children}
+                            </Typography>
+                          ),
+                          ul: ({ children }) => (
+                            <Box component="ul" sx={{ pl: 3, mb: 1.5 }}>
+                              {children}
+                            </Box>
+                          ),
+                          li: ({ children }) => (
+                            <Typography component="li" variant="body1" sx={{ mb: 0.5, lineHeight: 1.6 }}>
+                              {children}
+                            </Typography>
+                          ),
+                          code: ({ children }) => (
+                            <Typography
+                              component="code"
+                              sx={{
+                                fontFamily: 'monospace',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                padding: '2px 6px',
+                                borderRadius: 1,
+                                fontSize: '0.875rem'
+                              }}
+                            >
+                              {children}
+                            </Typography>
+                          ),
+                          hr: () => (
+                            <Box
+                              sx={{
+                                borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+                                my: 2
+                              }}
+                            />
+                          )
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                       <Typography variant="caption" color="text.secondary">
@@ -648,6 +709,163 @@ const AgentChat: React.FC = () => {
                         </Box>
                       </Box>
                     )}
+
+                    {/* Tool Transparency Section */}
+                    {msg.tool_results && msg.tool_results.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            cursor: 'pointer',
+                            '&:hover': { opacity: 0.8 }
+                          }}
+                          onClick={() => {
+                            const newExpanded = new Set(expandedToolResults)
+                            if (newExpanded.has(msg.id)) {
+                              newExpanded.delete(msg.id)
+                            } else {
+                              newExpanded.add(msg.id)
+                            }
+                            setExpandedToolResults(newExpanded)
+                          }}
+                        >
+                          <BugReport sx={{ fontSize: 16, color: 'primary.main' }} />
+                          <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+                            Tool Execution Details
+                          </Typography>
+                          {expandedToolResults.has(msg.id) ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                        </Box>
+
+                        <Collapse in={expandedToolResults.has(msg.id)}>
+                          <Box sx={{
+                            mt: 1,
+                            p: 2,
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            borderRadius: 1,
+                            border: '1px solid rgba(255, 255, 255, 0.1)'
+                          }}>
+                            {msg.tool_results.map((toolResult, index) => (
+                              <Box key={index} sx={{ mb: index < msg.tool_results!.length - 1 ? 2 : 0 }}>
+                                {toolResult.tools_executed && (
+                                  <Box sx={{ mb: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                                      Tools Executed:
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                      {toolResult.tools_executed.map((tool, toolIndex) => (
+                                        <Chip
+                                          key={toolIndex}
+                                          label={tool}
+                                          size="small"
+                                          color="primary"
+                                          variant="outlined"
+                                          sx={{ fontSize: '0.65rem', height: 20 }}
+                                        />
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                )}
+
+                                                                {/* Detailed Tool Executions - Clickable Buttons */}
+                                {toolResult.detailed_tool_executions && (
+                                  <Box sx={{ mt: 2 }}>
+                                    <Typography variant="caption" color="secondary.main" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
+                                      API CALLS - Click to Inspect
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                      {toolResult.detailed_tool_executions.map((execution, execIndex) => (
+                                        <Button
+                                          key={execIndex}
+                                          size="small"
+                                          variant="outlined"
+                                          color={execution.success ? 'success' : 'error'}
+                                          onClick={() => {
+                                            setSelectedToolExecution(execution)
+                                            setToolSidebarOpen(true)
+                                          }}
+                                          sx={{
+                                            fontSize: '0.7rem',
+                                            minWidth: 'auto',
+                                            px: 1,
+                                            py: 0.5,
+                                            textTransform: 'none',
+                                            borderRadius: 2,
+                                            '&:hover': {
+                                              transform: 'translateY(-1px)',
+                                              boxShadow: 2
+                                            }
+                                          }}
+                                          startIcon={<BugReport sx={{ fontSize: '12px !important' }} />}
+                                        >
+                                          {execution.tool_name}
+                                          <Typography variant="caption" sx={{ ml: 0.5, opacity: 0.7 }}>
+                                            ({execution.execution_time?.toFixed(2)}s)
+                                          </Typography>
+                                        </Button>
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                )}
+
+                                {toolResult.analysis_type && (
+                                  <Box sx={{ mb: 1 }}>
+                                    <Typography variant="caption" color="secondary.main" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+                                      {toolResult.analysis_type.replace('_', ' ')}
+                                    </Typography>
+
+                                    {toolResult.symbols_analyzed && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                        Symbols: {Array.isArray(toolResult.symbols_analyzed) ? toolResult.symbols_analyzed.join(', ') : toolResult.symbols_analyzed}
+                                      </Typography>
+                                    )}
+
+                                    {toolResult.data_points && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                        Data Points: {toolResult.data_points}
+                                      </Typography>
+                                    )}
+
+                                    {toolResult.sentiment_score !== undefined && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                        Sentiment Score: {toolResult.sentiment_score}
+                                      </Typography>
+                                    )}
+
+                                    {toolResult.articles_analyzed !== undefined && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                        Articles Analyzed: {toolResult.articles_analyzed}
+                                      </Typography>
+                                    )}
+
+                                    {toolResult.risk_level && (
+                                      <Chip
+                                        label={`Risk: ${toolResult.risk_level}`}
+                                        size="small"
+                                        color={toolResult.risk_level === 'high' ? 'error' : toolResult.risk_level === 'medium' ? 'warning' : 'success'}
+                                        sx={{ fontSize: '0.65rem', height: 20, mt: 0.5 }}
+                                      />
+                                    )}
+
+                                    {(toolResult.data_summary || toolResult.analysis_summary || toolResult.sentiment_summary) && (
+                                      <Typography variant="caption" color="text.secondary" sx={{
+                                        display: 'block',
+                                        mt: 0.5,
+                                        fontStyle: 'italic',
+                                        opacity: 0.8
+                                      }}>
+                                        {toolResult.data_summary || toolResult.analysis_summary || toolResult.sentiment_summary}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )}
+                              </Box>
+                            ))}
+                          </Box>
+                        </Collapse>
+                      </Box>
+                    )}
                   </Paper>
                 </ListItem>
               ))}
@@ -659,7 +877,7 @@ const AgentChat: React.FC = () => {
         {/* Input Area */}
         <Box
           sx={{
-            p: 3,
+            p: 2,
             borderTop: '1px solid rgba(255, 255, 255, 0.1)',
             background: 'rgba(15, 15, 15, 0.8)',
           }}
@@ -758,6 +976,212 @@ const AgentChat: React.FC = () => {
           )}
         </Box>
       </Card>
+      </Box>
+
+      {/* API Inspector Sidebar */}
+      {toolSidebarOpen && (
+        <Box sx={{
+          flex: '0 0 40%',
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: 'rgba(0, 0, 0, 0.4)',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.1)'
+        }}>
+          {/* Sidebar Header */}
+          <Box sx={{
+            p: 2,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <BugReport color="success" />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'success.main' }}>
+                API Inspector
+              </Typography>
+            </Box>
+            <Button
+              size="small"
+              onClick={() => {
+                setToolSidebarOpen(false)
+                setSelectedToolExecution(null)
+              }}
+              sx={{ minWidth: 'auto', p: 0.5 }}
+            >
+              <Close />
+            </Button>
+          </Box>
+
+          {/* Sidebar Content */}
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+            {selectedToolExecution ? (
+              <Box>
+                {/* Tool Execution Header */}
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Chip
+                      label={selectedToolExecution.tool_name}
+                      size="small"
+                      color={selectedToolExecution.success ? 'success' : 'error'}
+                      sx={{ fontSize: '0.75rem' }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      {selectedToolExecution.execution_time?.toFixed(3)}s
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {selectedToolExecution.result_summary}
+                  </Typography>
+                </Box>
+
+                {/* Parameters Section */}
+                {selectedToolExecution.parameters && Object.keys(selectedToolExecution.parameters).length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" color="warning.main" sx={{ fontWeight: 600, mb: 1 }}>
+                      📋 Request Parameters
+                    </Typography>
+                                                        <Box sx={{
+                                      background: 'rgba(255, 193, 7, 0.05)',
+                                      p: 2,
+                                      borderRadius: 1,
+                                      border: '1px solid rgba(255, 193, 7, 0.2)',
+                                      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+                                      fontSize: '0.85rem',
+                                      overflow: 'auto',
+                                      maxHeight: 300,
+                                      lineHeight: 1.4
+                                    }}>
+                                      <pre style={{
+                                        margin: 0,
+                                        whiteSpace: 'pre-wrap',
+                                        color: '#ffa726',
+                                        textShadow: '0 0 2px rgba(255, 167, 38, 0.3)'
+                                      }}>
+                                        {JSON.stringify(selectedToolExecution.parameters, null, 2)}
+                                      </pre>
+                                    </Box>
+                  </Box>
+                )}
+
+                {/* Result Data Section */}
+                {selectedToolExecution.result_data && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" color="success.main" sx={{ fontWeight: 600, mb: 1 }}>
+                      ✅ Response Data
+                    </Typography>
+                                                        <Box sx={{
+                                      background: 'rgba(76, 175, 80, 0.05)',
+                                      p: 2,
+                                      borderRadius: 1,
+                                      border: '1px solid rgba(76, 175, 80, 0.2)',
+                                      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+                                      fontSize: '0.85rem',
+                                      overflow: 'auto',
+                                      maxHeight: 400,
+                                      lineHeight: 1.4
+                                    }}>
+                                      <pre style={{
+                                        margin: 0,
+                                        whiteSpace: 'pre-wrap',
+                                        color: '#66bb6a',
+                                        textShadow: '0 0 2px rgba(102, 187, 106, 0.3)'
+                                      }}>
+                                        {JSON.stringify(selectedToolExecution.result_data, null, 2)}
+                                      </pre>
+                                    </Box>
+                  </Box>
+                )}
+
+                                {/* Result Preview Section */}
+                {selectedToolExecution.result_preview && (
+                  <Box sx={{ mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="subtitle2" color="info.main" sx={{ fontWeight: 600 }}>
+                        👁️ Response Preview ({selectedToolExecution.result_size} chars)
+                      </Typography>
+                      {selectedToolExecution.result_data_full && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="info"
+                          onClick={() => {
+                            setFullResponseData(selectedToolExecution.result_data_full)
+                            setExpandedFullResponse(true)
+                          }}
+                          sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
+                        >
+                          Expand Full
+                        </Button>
+                      )}
+                    </Box>
+                    <Box sx={{
+                      background: 'rgba(33, 150, 243, 0.05)',
+                      p: 2,
+                      borderRadius: 1,
+                      border: '1px solid rgba(33, 150, 243, 0.2)',
+                      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+                      fontSize: '0.85rem',
+                      overflow: 'auto',
+                      maxHeight: 300,
+                      lineHeight: 1.4
+                    }}>
+                      <pre style={{
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                        color: '#42a5f5',
+                        textShadow: '0 0 2px rgba(66, 165, 245, 0.3)'
+                      }}>
+                        {selectedToolExecution.result_preview}
+                      </pre>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Error Section */}
+                {selectedToolExecution.error && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" color="error.main" sx={{ fontWeight: 600, mb: 1 }}>
+                      ❌ Error Details
+                    </Typography>
+                                                        <Box sx={{
+                                      background: 'rgba(244, 67, 54, 0.05)',
+                                      p: 2,
+                                      borderRadius: 1,
+                                      border: '1px solid rgba(244, 67, 54, 0.2)',
+                                      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+                                      fontSize: '0.85rem',
+                                      lineHeight: 1.4,
+                                      color: '#ef5350',
+                                      textShadow: '0 0 2px rgba(239, 83, 80, 0.3)'
+                                    }}>
+                                      {selectedToolExecution.error}
+                                    </Box>
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                textAlign: 'center',
+                color: 'text.secondary'
+              }}>
+                <BugReport sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                <Typography variant="h6" sx={{ mb: 1, opacity: 0.7 }}>
+                  API Inspector
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.5 }}>
+                  Click on any tool execution in the chat to inspect its API request and response data
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
 
       {/* Configuration Panel */}
       <Drawer
@@ -819,6 +1243,93 @@ const AgentChat: React.FC = () => {
           />
         </Box>
       </Drawer>
+
+      {/* Full Response Dialog */}
+      <Dialog
+        open={expandedFullResponse}
+        onClose={() => {
+          setExpandedFullResponse(false)
+          setFullResponseData(null)
+        }}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          pb: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <BugReport color="success" />
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'success.main' }}>
+              Full API Response Data
+            </Typography>
+          </Box>
+          <Button
+            onClick={() => {
+              setExpandedFullResponse(false)
+              setFullResponseData(null)
+            }}
+            sx={{ minWidth: 'auto', p: 0.5 }}
+          >
+            <Close />
+          </Button>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{
+            p: 3,
+            fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+            fontSize: '0.9rem',
+            lineHeight: 1.4,
+            background: 'rgba(0, 0, 0, 0.3)',
+            minHeight: 400,
+            maxHeight: '70vh',
+            overflow: 'auto'
+          }}>
+            <pre style={{
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              color: '#66bb6a',
+              textShadow: '0 0 2px rgba(102, 187, 106, 0.3)'
+            }}>
+              {fullResponseData ? JSON.stringify(fullResponseData, null, 2) : 'Loading...'}
+            </pre>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          p: 2,
+          justifyContent: 'space-between'
+        }}>
+          <Typography variant="caption" color="text.secondary">
+            Full response data - Copy and paste friendly
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              if (fullResponseData) {
+                navigator.clipboard.writeText(JSON.stringify(fullResponseData, null, 2))
+                // You could add a toast notification here
+              }
+            }}
+            sx={{ fontSize: '0.8rem' }}
+          >
+            Copy JSON
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
