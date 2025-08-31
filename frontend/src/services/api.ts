@@ -56,6 +56,15 @@ export const agentApi = {
     return response.data
   },
 
+  sendCollaborativeMessage: async (primaryAgent: string, message: string, collaboratingAgents: string[]): Promise<any> => {
+    const response = await api.post('/agents/collaboration/message', {
+      primary_agent: primaryAgent,
+      text: message,
+      collaborating_agents: collaboratingAgents
+    })
+    return response.data
+  },
+
   startAgent: async (agentName: string): Promise<{ message: string }> => {
     const response = await api.post(`/agents/${encodeURIComponent(agentName)}/start`)
     return response.data
@@ -82,11 +91,21 @@ export const agentApi = {
     return response.data
   },
 
-  collaborateAgents: async (agent1: string, agent2: string, message: string): Promise<any> => {
+  getActiveCollaborations: async (): Promise<{ active_collaborations: Record<string, any>; total_active: number }> => {
+    const response = await api.get('/agents/collaboration/active')
+    return response.data
+  },
+
+  collaborateAgents: async (agent1: string, agent2: string, message: string = ''): Promise<any> => {
     const response = await api.post(`/agents/${encodeURIComponent(agent1)}/collaborate/${encodeURIComponent(agent2)}`, {
       message,
-      collaboration_type: 'request'
+      collaboration_type: 'thread_connection'
     })
+    return response.data
+  },
+
+  removeCollaboration: async (agent1: string, agent2: string): Promise<any> => {
+    const response = await api.delete(`/agents/${encodeURIComponent(agent1)}/collaborate/${encodeURIComponent(agent2)}`)
     return response.data
   },
 

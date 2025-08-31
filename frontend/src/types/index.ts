@@ -81,8 +81,11 @@ export interface CollaborationEdge {
 }
 
 export interface CollaborationGraph {
-  nodes: CollaborationNode[]
-  edges: CollaborationEdge[]
+  [agentName: string]: {
+    type: string
+    can_collaborate_with: string[]
+    collaboration_style: string
+  }
 }
 
 export interface PerformanceMetrics {

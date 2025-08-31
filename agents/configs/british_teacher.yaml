@@ -51,7 +51,7 @@ tools:
 
 
 collaboration:
-  can_collaborate_with: ["chinese_teacher", "weather_agent"]
+  can_collaborate_with: ["teacher_li", "weather_agent"]
   collaboration_style: "supportive"
   share_progress: true
 

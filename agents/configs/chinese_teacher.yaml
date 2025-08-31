@@ -60,7 +60,7 @@ tools:
 
 
 collaboration:
-  can_collaborate_with: ["british_teacher", "weather_agent"]
+  can_collaborate_with: ["professor_james", "weather_agent"]
   collaboration_style: "collaborative"
   share_cultural_insights: true
 

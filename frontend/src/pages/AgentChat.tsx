@@ -77,6 +77,8 @@ const AgentChat: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [showMetrics, setShowMetrics] = useState(true)
   const [messageCounter, setMessageCounter] = useState(0)
+  const [collaborationMode, setCollaborationMode] = useState(false)
+  const [collaboratingAgents, setCollaboratingAgents] = useState<string[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
@@ -89,9 +91,30 @@ const AgentChat: React.FC = () => {
     }
   )
 
+  const { data: collaborationData } = useQuery(
+    'collaboration-graph',
+    agentApi.getCollaborationGraph,
+    {
+      refetchInterval: 30000,
+    }
+  )
+
+  const { data: activeCollaborationsData } = useQuery(
+    'active-collaborations',
+    agentApi.getActiveCollaborations,
+    {
+      refetchInterval: 10000,
+    }
+  )
+
   const sendMessageMutation = useMutation(
-    ({ agentName, messageData }: { agentName: string; messageData: any }) =>
-      agentApi.sendMessage(agentName, messageData),
+    ({ agentName, messageData, isCollaborative }: { agentName: string; messageData: any; isCollaborative?: boolean }) => {
+      if (isCollaborative && collaboratingAgents.length > 1) {
+        return agentApi.sendCollaborativeMessage(agentName, messageData.text, collaboratingAgents)
+      } else {
+        return agentApi.sendMessage(agentName, messageData)
+      }
+    },
     {
       onSuccess: (response, variables) => {
         const agentMessage: ChatMessage = {
@@ -99,7 +122,9 @@ const AgentChat: React.FC = () => {
           sender: 'agent',
           content: response.response,
           timestamp: new Date(),
-          agentName: variables.agentName,
+          agentName: response.collaboration_mode ?
+            `${variables.agentName} (+ ${response.collaborating_agents?.filter((a: string) => a !== variables.agentName).join(', ')})` :
+            variables.agentName,
           processingTime: response.processing_time,
           suggestions: response.suggestions,
           tokens_used: response.tokens_used || Math.floor(Math.random() * 500) + 100,
@@ -110,7 +135,8 @@ const AgentChat: React.FC = () => {
         setMessageCounter(prev => prev + 1)
 
         if (response.processing_time) {
-          toast.success(`Response received in ${response.processing_time.toFixed(2)}s`)
+          const modeText = response.collaboration_mode ? ' (collaborative)' : ''
+          toast.success(`Response received in ${response.processing_time.toFixed(2)}s${modeText}`)
         }
 
         if (currentSessionId && currentConfig?.testing.auto_save_conversations) {
@@ -119,7 +145,7 @@ const AgentChat: React.FC = () => {
             {
               id: `user-${Date.now() - 1000}`,
               sender: 'user',
-              content: variables.messageData.text,
+              content: variables.messageData?.text || variables.messageData,
               timestamp: new Date(Date.now() - 1000),
             },
             agentMessage,
@@ -218,6 +244,7 @@ const AgentChat: React.FC = () => {
     await sendMessageMutation.mutateAsync({
       agentName: selectedAgent,
       messageData,
+      isCollaborative: collaborationMode,
     })
 
     setMessage('')
@@ -276,6 +303,21 @@ const AgentChat: React.FC = () => {
   const metrics = getPerformanceMetrics()
   const agents = agentsData?.agents || {}
   const runningAgents = Object.entries(agents).filter(([, agent]: [string, any]) => agent.status === 'running')
+
+    const getActiveCollaboratingAgents = (agentName: string): string[] => {
+    if (!activeCollaborationsData?.active_collaborations) return []
+    const activeCollabs: string[] = []
+
+    Object.values(activeCollaborationsData.active_collaborations).forEach((collab: any) => {
+      if (collab.agent1 === agentName && agents[collab.agent2]?.status === 'running') {
+        activeCollabs.push(collab.agent2)
+      } else if (collab.agent2 === agentName && agents[collab.agent1]?.status === 'running') {
+        activeCollabs.push(collab.agent1)
+      }
+    })
+
+    return activeCollabs
+  }
 
   return (
     <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
@@ -432,11 +474,39 @@ const AgentChat: React.FC = () => {
             </FormControl>
 
             {selectedAgent && (
-              <Chip
-                label={`Connected to ${selectedAgent}`}
-                color="success"
-                size="small"
-              />
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Chip
+                  label={`Connected to ${selectedAgent}`}
+                  color="success"
+                  size="small"
+                />
+                {getActiveCollaboratingAgents(selectedAgent).length > 0 && (
+                  <Chip
+                    label={`🤝 ${getActiveCollaboratingAgents(selectedAgent).length} active collaborations`}
+                    color="primary"
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
+                {getActiveCollaboratingAgents(selectedAgent).length > 0 && (
+                  <Button
+                    size="small"
+                    variant={collaborationMode ? "contained" : "outlined"}
+                    color="secondary"
+                    onClick={() => {
+                      setCollaborationMode(!collaborationMode)
+                      if (!collaborationMode) {
+                        setCollaboratingAgents([selectedAgent, ...getActiveCollaboratingAgents(selectedAgent)])
+                      } else {
+                        setCollaboratingAgents([])
+                      }
+                    }}
+                    sx={{ fontSize: '10px', minWidth: 'auto', px: 1 }}
+                  >
+                    {collaborationMode ? 'Exit Collab Mode' : 'Test Collaboration'}
+                  </Button>
+                )}
+              </Box>
             )}
 
             <Box sx={{ flexGrow: 1 }} />
@@ -490,7 +560,7 @@ const AgentChat: React.FC = () => {
             </Box>
           ) : (
             <List sx={{ p: 0 }}>
-              {chatHistory.map((msg, index) => (
+              {chatHistory.map((msg) => (
                 <ListItem
                   key={msg.id}
                   sx={{
@@ -604,7 +674,9 @@ const AgentChat: React.FC = () => {
               onKeyPress={handleKeyPress}
               placeholder={
                 selectedAgent
-                  ? `Message ${selectedAgent}...`
+                  ? collaborationMode && collaboratingAgents.length > 1
+                    ? `Message ${selectedAgent} (collaboration mode with ${collaboratingAgents.filter(a => a !== selectedAgent).join(', ')})...`
+                    : `Message ${selectedAgent}...`
                   : 'Select an agent first...'
               }
               disabled={!selectedAgent || sendMessageMutation.isLoading}
@@ -638,6 +710,50 @@ const AgentChat: React.FC = () => {
           {runningAgents.length === 0 && (
             <Alert severity="warning" sx={{ mt: 2 }}>
               No running agents available. Please start an agent first.
+            </Alert>
+          )}
+
+          {collaborationMode && collaboratingAgents.length > 1 && (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                🤝 <strong>Collaboration Mode Active</strong> - Testing with:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {collaboratingAgents.map(agent => (
+                  <Chip
+                    key={agent}
+                    label={agent}
+                    size="small"
+                    color="secondary"
+                    variant="filled"
+                  />
+                ))}
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                💡 Your message will be sent to the primary agent, and collaborating agents may contribute to the response
+              </Typography>
+            </Alert>
+          )}
+
+          {selectedAgent && getActiveCollaboratingAgents(selectedAgent).length > 0 && !collaborationMode && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>{selectedAgent}</strong> has active collaborations with:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {getActiveCollaboratingAgents(selectedAgent).map(collaborator => (
+                  <Chip
+                    key={collaborator}
+                    label={collaborator}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                ))}
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                💡 Click "Test Collaboration" to see how they work together
+              </Typography>
             </Alert>
           )}
         </Box>
