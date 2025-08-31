@@ -1,0 +1,195 @@
+name: "trading_bot"
+type: "trading_assistant"
+implementation: "agents.implementations.trading_agent.TradingAgent"
+
+personality:
+  style: "Professional financial analyst"
+  tone: "Data-driven and objective"
+  expertise: "Stock market analysis and risk management"
+  communication_style: "clear_and_analytical"
+  risk_awareness: "high"
+
+system_prompt: |
+  You are TradingBot, an advanced financial analysis assistant with deep expertise in stock market
+  analysis, technical indicators, and risk management. You provide comprehensive, data-driven trading
+  analysis while maintaining the highest standards of risk management and professional responsibility.
+
+  Your core capabilities include:
+  - Real-time stock data analysis and interpretation
+  - Technical analysis with multiple timeframes and indicators
+  - News sentiment analysis and market context evaluation
+  - Comprehensive risk assessment and position sizing recommendations
+  - Trading signal generation with confidence levels
+  - Portfolio analysis and optimization suggestions
+
+  You always emphasize proper risk management, appropriate position sizing, and the importance of
+  diversification. You provide clear disclaimers about market risks and encourage users to conduct
+  their own research and consult with qualified financial advisors.
+
+  Your analysis is objective, factual, and based on quantitative data while being accessible to
+  traders of all experience levels.
+
+tools:
+  - name: "yahoo_finance_api"
+    class: "tools.financial.yahoo_finance_tool.YahooFinanceTool"
+    parameters:
+      cache_ttl: 60.0  # Cache for 1 minute for real-time data
+      timeout: 30.0
+
+  - name: "multi_symbol_yahoo_finance"
+    class: "tools.financial.yahoo_finance_tool.MultiSymbolYahooFinanceTool"
+    parameters:
+      cache_ttl: 60.0
+      timeout: 45.0
+
+  - name: "technical_indicators"
+    class: "tools.financial.technical_indicators_tool.TechnicalIndicatorsTool"
+    parameters:
+      timeout: 20.0
+
+  - name: "news_sentiment_analyzer"
+    class: "tools.financial.news_sentiment_tool.NewsSentimentTool"
+    parameters:
+      api_key: "${ALPHA_VANTAGE_API_KEY}"  # Optional - will use fallback if not provided
+      cache_ttl: 300.0  # Cache news for 5 minutes
+      timeout: 30.0
+
+  - name: "risk_analyzer"
+    class: "tools.financial.risk_analyzer_tool.RiskAnalyzerTool"
+    parameters:
+      timeout: 25.0
+
+  - name: "trading_signal_generator"
+    class: "tools.financial.trading_signals_tool.TradingSignalsTool"
+    parameters:
+      timeout: 20.0
+
+  - name: "portfolio_analyzer"
+    class: "tools.financial.portfolio_analyzer_tool.PortfolioAnalyzerTool"
+    parameters:
+      timeout: 30.0
+
+  - name: "symbol_extractor"
+    class: "tools.financial.symbol_extractor_tool.SymbolExtractorTool"
+    parameters:
+      timeout: 10.0
+
+# Trading-specific configuration
+trading_specialties:
+  - "technical_analysis"
+  - "fundamental_analysis"
+  - "risk_management"
+  - "portfolio_optimization"
+  - "market_sentiment_analysis"
+  - "volatility_analysis"
+  - "trend_identification"
+  - "support_resistance_analysis"
+
+risk_tolerance: "moderate"  # Options: conservative, moderate, aggressive
+
+analysis_timeframes:
+  - "1d"    # Intraday analysis
+  - "5d"    # Short-term analysis
+  - "1mo"   # Medium-term analysis
+  - "3mo"   # Longer-term context
+
+confidence_threshold: 0.6  # Minimum confidence for trading signals
+
+# Response configuration
+response_formats:
+  brief: "Quick market summary with key metrics"
+  detailed: "Comprehensive analysis with all indicators"
+  signals: "Trading signals with entry/exit points"
+  risk_focused: "Risk assessment and position sizing recommendations"
+
+# Collaboration settings
+collaboration:
+  can_collaborate_with: ["weather_bot", "british_teacher", "chinese_teacher"]
+  collaboration_style: "analytical_support"
+  share_data: true
+  provide_market_context: true
+
+# Context and memory settings
+max_context_length: 4500
+max_context_items: 120
+max_memories: 1500
+
+# Memory configuration for trading context
+memory_config:
+  remember_conversations: true
+  context_window: 10  # Remember last 10 interactions
+  importance_threshold: 0.6
+  remember_analysis_results: true
+  remember_user_preferences: true
+  track_performance: true
+
+# LLM Configuration optimized for financial analysis
+llm_config:
+  preferred_provider: "openai"  # GPT-4 is excellent for financial analysis
+  max_response_tokens: 800
+  response_temperature: 0.2  # Lower temperature for more focused, factual responses
+  financial_mode: true
+
+# Advanced trading configuration
+advanced_settings:
+  # Risk management
+  max_position_size_pct: 10.0  # Maximum 10% of portfolio per position
+  stop_loss_default_pct: 8.0   # Default 8% stop loss
+  risk_reward_ratio: 2.0       # Minimum 2:1 risk/reward ratio
+
+  # Analysis parameters
+  min_volume_ratio: 0.5        # Minimum volume ratio for analysis
+  correlation_threshold: 0.7    # High correlation threshold
+  volatility_lookback_days: 30  # Days for volatility calculation
+
+  # Signal generation
+  signal_aggregation_method: "weighted_average"
+  min_signal_strength: 0.4
+  max_signals_per_analysis: 5
+
+  # Portfolio analysis
+  diversification_min_assets: 3
+  max_sector_concentration: 40.0  # Maximum 40% in any sector
+  rebalancing_threshold: 5.0      # 5% deviation triggers rebalancing suggestion
+
+# Market data sources priority
+data_sources:
+  primary: "yahoo_finance"
+  news: "alpha_vantage"  # Falls back to sample data if API key not available
+  backup: "fallback_data"
+
+# Disclaimer and compliance
+compliance:
+  include_disclaimers: true
+  educational_purpose_only: true
+  recommend_professional_advice: true
+  risk_warnings: true
+
+# Performance and monitoring
+monitoring:
+  track_analysis_accuracy: true
+  log_trading_signals: true
+  performance_attribution: true
+  error_tracking: true
+
+# User experience settings
+user_experience:
+  provide_explanations: true
+  show_confidence_levels: true
+  include_risk_warnings: true
+  suggest_further_research: true
+  educational_content: true
+
+# Integration settings
+integrations:
+  chart_analysis: false  # Could be enabled with chart analysis tools
+  real_time_alerts: false  # Could be enabled with notification system
+  portfolio_tracking: false  # Could be enabled with portfolio management system
+  backtesting: false  # Could be enabled with backtesting tools
+
+# Fallback behavior
+fallback_behavior:
+  on_api_failure: "use_cached_data"
+  on_insufficient_data: "request_more_context"
+  on_high_uncertainty: "recommend_caution"
+  on_missing_symbols: "suggest_alternatives"

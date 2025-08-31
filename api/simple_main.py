@@ -88,7 +88,8 @@ async def load_real_agents():
         available_configs = {
             "professor_james": "british_teacher.yaml",
             "teacher_li": "chinese_teacher.yaml",
-            "weather_bot": "weather_agent.yaml"
+            "weather_bot": "weather_agent.yaml",
+            "trading_bot": "trading_agent.yaml"
         }
 
         for agent_id, config_file in available_configs.items():
@@ -164,6 +165,22 @@ mock_agents = {
             "context_by_type": {"system": 1, "user": 1, "memory": 1}
         },
         "memory_stats": {"conversations": 2, "facts": 8, "preferences": 3}
+    },
+    "trading_bot": {
+        "name": "trading_bot",
+        "type": "trading_assistant",
+        "status": "running",
+        "module": "trading_module",
+        "personality": {"style": "Professional financial analyst", "tone": "Data-driven and objective"},
+        "tools": ["yahoo_finance_api", "technical_indicators", "news_sentiment_analyzer", "risk_analyzer", "trading_signal_generator", "portfolio_analyzer", "symbol_extractor"],
+        "context_summary": {
+            "total_items": 12,
+            "total_tokens": 3200,
+            "max_tokens": 4500,
+            "token_utilization": 71.11,
+            "context_by_type": {"system": 4, "user": 5, "memory": 3}
+        },
+        "memory_stats": {"conversations": 8, "facts": 45, "preferences": 12}
     },
     "weather_wizard": {
         "name": "weather_wizard",
@@ -437,39 +454,180 @@ def _extract_suggestions(response: Dict[str, Any]) -> List[str]:
     """Extract suggestions from agent response"""
     suggestions = []
 
-    # From teaching points
-    teaching_points = response.get("teaching_points", [])
-    for point in teaching_points:
-        if isinstance(point, dict) and "content" in point:
-            suggestions.append(f"Learn more about: {point['content']}")
+    try:
+        # From teaching points
+        teaching_points = response.get("teaching_points", [])
+        for point in teaching_points:
+            if isinstance(point, dict) and "content" in point:
+                suggestions.append(f"Learn more about: {point['content']}")
 
-    # From next steps
-    next_steps = response.get("next_steps", [])
-    suggestions.extend(next_steps[:3])  # Limit to 3
+        # From next steps
+        next_steps = response.get("next_steps", [])
+        if isinstance(next_steps, list):
+            for step in next_steps[:3]:
+                if isinstance(step, str):
+                    suggestions.append(step)
+                else:
+                    suggestions.append(str(step))
 
-    # From recommendations
-    recommendations = response.get("recommendations", [])
-    if isinstance(recommendations, list):
-        suggestions.extend(recommendations[:2])
+        # From recommendations
+        recommendations = response.get("recommendations", [])
+        if isinstance(recommendations, list):
+            for rec in recommendations[:2]:
+                if isinstance(rec, dict):
+                    # Handle dictionary recommendations (e.g., from trading agent)
+                    if "message" in rec:
+                        suggestions.append(rec["message"])
+                    elif "content" in rec:
+                        suggestions.append(rec["content"])
+                    elif "text" in rec:
+                        suggestions.append(rec["text"])
+                    else:
+                        # Try to create a meaningful string from the dict
+                        rec_type = rec.get("type", "suggestion")
+                        if "suggestion" in rec:
+                            suggestions.append(rec["suggestion"])
+                        else:
+                            # Last resort: skip complex dictionaries
+                            print(f"Warning: Skipping complex recommendation dict: {rec}")
+                            continue
+                elif isinstance(rec, str):
+                    suggestions.append(rec)
+                else:
+                    suggestions.append(str(rec))
 
-    return suggestions[:5]  # Limit total suggestions
+    except Exception as e:
+        print(f"Error extracting suggestions: {e}")
+        print(f"Response structure: {response}")
+
+    # Ensure all suggestions are strings
+    string_suggestions = []
+    for suggestion in suggestions[:5]:
+        if isinstance(suggestion, str):
+            string_suggestions.append(suggestion)
+        else:
+            string_suggestions.append(str(suggestion))
+
+    return string_suggestions
 
 def _extract_tool_results(response: Dict[str, Any]) -> List[Any]:
-    """Extract tool results from agent response"""
+    """Extract tool results from agent response with detailed transparency"""
     tool_results = []
 
-    # Tools used
-    tools_used = response.get("tools_used", [])
-    if tools_used:
-        tool_results.append({"tools_executed": tools_used})
+    try:
+        # Tools used (simple list for backward compatibility)
+        tools_used = response.get("tools_used", [])
+        if tools_used:
+            tool_results.append({"tools_executed": tools_used})
 
-    # Weather data
-    if "weather_data" in response:
-        tool_results.append({"weather_data": response["weather_data"]})
+                # Detailed tool execution results
+        tool_executions = response.get("tool_executions", [])
+        if tool_executions:
+            detailed_executions = []
+            for execution in tool_executions:
+                if isinstance(execution, dict):
+                    # Include detailed tool execution info
+                    tool_info = {
+                        "tool_name": execution.get("tool_name", "unknown"),
+                        "parameters": execution.get("parameters", {}),
+                        "success": execution.get("success", False),
+                        "execution_time": execution.get("execution_time", 0),
+                        "result_summary": execution.get("result_summary", "No summary available"),
+                        "timestamp": execution.get("timestamp", 0)
+                    }
 
-    # Analysis results
-    if "analysis" in response:
-        tool_results.append({"analysis": response["analysis"]})
+                    # Include error info if tool failed
+                    if not execution.get("success", False) and "error" in execution:
+                        tool_info["error"] = execution["error"]
+
+                                        # Include result data if available
+                    if "result_data" in execution:
+                        result_data = execution["result_data"]
+                        if isinstance(result_data, dict):
+                            # Summarize large results
+                            if len(str(result_data)) > 1000:
+                                tool_info["result_preview"] = str(result_data)[:500] + "... (truncated)"
+                                tool_info["result_size"] = len(str(result_data))
+                            else:
+                                tool_info["result_data"] = result_data
+                        else:
+                            tool_info["result_data"] = result_data
+
+                    # Include result preview if available
+                    if "result_preview" in execution:
+                        tool_info["result_preview"] = execution["result_preview"]
+                        tool_info["result_size"] = execution.get("result_size", 0)
+
+                    # Include full result data for expansion capability
+                    if "result_data_full" in execution:
+                        tool_info["result_data_full"] = execution["result_data_full"]
+
+                    detailed_executions.append(tool_info)
+
+            if detailed_executions:
+                tool_results.append({"detailed_tool_executions": detailed_executions})
+
+        # Stock analysis data (for trading agent transparency)
+        stock_data = response.get("stock_data", {})
+        if stock_data:
+            tool_results.append({
+                "analysis_type": "stock_data",
+                "symbols_analyzed": list(stock_data.keys()) if isinstance(stock_data, dict) else [],
+                "data_points": len(stock_data) if isinstance(stock_data, dict) else 0,
+                "data_summary": "Stock price data retrieved successfully" if stock_data else "No stock data available"
+            })
+
+        # Technical analysis results
+        technical_analysis = response.get("technical_analysis", {})
+        if technical_analysis:
+            tool_results.append({
+                "analysis_type": "technical_indicators",
+                "indicators_calculated": list(technical_analysis.keys()) if isinstance(technical_analysis, dict) else [],
+                "analysis_summary": "Technical indicators calculated successfully" if technical_analysis else "No technical data available"
+            })
+
+        # News sentiment results
+        news_sentiment = response.get("news_sentiment", {})
+        if news_sentiment:
+            tool_results.append({
+                "analysis_type": "news_sentiment",
+                "sentiment_score": news_sentiment.get("overall_sentiment", "N/A"),
+                "articles_analyzed": news_sentiment.get("articles_count", 0),
+                "sentiment_summary": news_sentiment.get("summary", "No sentiment data available")
+            })
+
+        # Risk assessment results
+        risk_assessment = response.get("risk_assessment", {})
+        if risk_assessment:
+            tool_results.append({
+                "analysis_type": "risk_assessment",
+                "risk_level": risk_assessment.get("risk_level", "unknown"),
+                "volatility": risk_assessment.get("volatility", "N/A"),
+                "risk_factors": risk_assessment.get("risk_factors", [])
+            })
+
+        # Trading signals
+        trading_signals = response.get("trading_signals", [])
+        if trading_signals:
+            tool_results.append({
+                "analysis_type": "trading_signals",
+                "signals_generated": len(trading_signals),
+                "signal_types": [signal.get("signal", "unknown") for signal in trading_signals if isinstance(signal, dict)]
+            })
+
+        # Weather data (for other agents)
+        if "weather_data" in response:
+            tool_results.append({"weather_data": response["weather_data"]})
+
+        # General analysis results
+        if "analysis" in response:
+            tool_results.append({"analysis": response["analysis"]})
+
+    except Exception as e:
+        tool_results.append({
+            "error": f"Error extracting tool results: {str(e)}",
+            "raw_response_keys": list(response.keys()) if isinstance(response, dict) else []
+        })
 
     return tool_results
 
