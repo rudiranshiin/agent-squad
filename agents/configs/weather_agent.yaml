@@ -1,4 +1,4 @@
-name: "WeatherBot"
+name: "weather_bot"
 type: "weather_assistant"
 implementation: "agents.implementations.weather_agent.WeatherAgent"
 
@@ -43,15 +43,7 @@ tools:
       activities: ["outdoor_sports", "travel", "agriculture", "events"]
       safety_recommendations: true
 
-memory_config:
-  remember_conversations: true
-  context_window: 8
-  importance_threshold: 0.5
-  focus_on:
-    - "preferred_locations"
-    - "activity_interests"
-    - "weather_sensitivity"
-    - "planning_horizon"
+
 
 collaboration:
   can_collaborate_with: ["british_teacher", "chinese_teacher"]
@@ -60,7 +52,7 @@ collaboration:
 
 max_context_length: 3500
 max_context_items: 100
-max_memories: 1000
+
 
 weather_specialties:
   - "current_conditions"

@@ -87,11 +87,10 @@ agentic-framework/
 │   ├── configs/               # YAML configuration files
 │   └── implementations/        # Agent implementation classes
 ├── tools/                      # Legacy tool implementations
-├── api/                        # 🆕 Enhanced REST API
-│   └── main.py                # Module-aware API with performance monitoring
+├── api/                        # REST API
+│   └── simple_main.py         # Simplified API with LLM integration
 ├── scripts/                    # Development utilities
-│   ├── enhanced_create_agent.py # 🆕 Advanced agent creation tool
-│   └── create_agent.py         # Legacy creation script
+│   └── enhanced_create_agent.py # Advanced agent creation tool
 ├── docs/                       # Documentation
 └── tests/                      # Comprehensive test suite
 ```
@@ -112,7 +111,7 @@ pip install -r requirements.txt
 ### 2. Create Your First Agent (Interactive Mode)
 
 ```bash
-# Launch the enhanced agent creation wizard
+# Launch the agent creation wizard
 python scripts/enhanced_create_agent.py
 
 # Follow the interactive prompts to:
@@ -141,9 +140,9 @@ python scripts/enhanced_create_agent.py \
 
 ```bash
 # Start the server with module support
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn api.simple_main:app --reload --host 0.0.0.0 --port 8000
 
-# Access the enhanced API documentation
+# Access the API documentation
 # http://localhost:8000/docs
 ```
 

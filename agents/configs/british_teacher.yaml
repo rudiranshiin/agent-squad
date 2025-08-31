@@ -1,4 +1,4 @@
-name: "Professor James"
+name: "professor_james"
 type: "language_teacher"
 implementation: "agents.implementations.language_teacher.LanguageTeacherAgent"
 
@@ -48,24 +48,16 @@ tools:
       language: "en-GB"
       include_etymology: true
 
-memory_config:
-  remember_conversations: true
-  context_window: 10
-  importance_threshold: 0.6
-  focus_on:
-    - "student_preferences"
-    - "learning_goals"
-    - "pronunciation_challenges"
-    - "grammar_mistakes"
+
 
 collaboration:
-  can_collaborate_with: ["chinese_teacher", "weather_agent"]
+  can_collaborate_with: ["teacher_li", "weather_agent"]
   collaboration_style: "supportive"
   share_progress: true
 
 max_context_length: 4000
 max_context_items: 120
-max_memories: 1500
+
 
 teaching_preferences:
   methodology: "communicative_approach"

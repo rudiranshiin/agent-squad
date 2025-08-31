@@ -27,7 +27,6 @@ import {
 import ReactFlow, {
   Node,
   Edge,
-  addEdge,
   Connection,
   useNodesState,
   useEdgesState,
@@ -37,6 +36,8 @@ import ReactFlow, {
   MiniMap,
   ReactFlowProvider,
   useReactFlow,
+  Handle,
+  Position,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
@@ -68,72 +69,158 @@ const AgentNodeComponent = ({ data, selected }: { data: any; selected: boolean }
   }
 
   return (
-    <Card
-      sx={{
-        minWidth: 200,
-        border: selected ? '2px solid #667eea' : '1px solid rgba(255, 255, 255, 0.1)',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(10px)',
-        transition: 'all 0.3s ease',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          transform: 'scale(1.02)',
-        },
-      }}
-    >
-      <CardContent sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography variant="h6" sx={{ fontSize: '24px' }}>
-            {getTypeIcon(agentType)}
-          </Typography>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" sx={{ fontSize: '14px', fontWeight: 600 }}>
-              {label}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
-              {agentType}
-            </Typography>
-          </Box>
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              backgroundColor: getStatusColor(status),
-              boxShadow: `0 0 8px ${getStatusColor(status)}`,
-            }}
-          />
-        </Box>
+    <>
+      {/* Connection Handles - Much More Visible */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          background: 'linear-gradient(45deg, #667eea, #764ba2)',
+          width: 20,
+          height: 20,
+          border: '3px solid #fff',
+          boxShadow: '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)',
+          transition: 'all 0.3s ease',
+          cursor: 'crosshair',
+          zIndex: 1000,
+          animation: 'handlePulse 2s infinite',
+        }}
+        onMouseEnter={(e) => {
+          const target = e.target as HTMLElement
+          target.style.transform = 'scale(1.5)'
+          target.style.boxShadow = '0 0 20px rgba(102, 126, 234, 1), 0 0 40px rgba(102, 126, 234, 0.8)'
+          target.style.background = 'linear-gradient(45deg, #764ba2, #667eea)'
+        }}
+        onMouseLeave={(e) => {
+          const target = e.target as HTMLElement
+          target.style.transform = 'scale(1)'
+          target.style.boxShadow = '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)'
+          target.style.background = 'linear-gradient(45deg, #667eea, #764ba2)'
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{
+          background: 'linear-gradient(45deg, #667eea, #764ba2)',
+          width: 20,
+          height: 20,
+          border: '3px solid #fff',
+          boxShadow: '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)',
+          transition: 'all 0.3s ease',
+          cursor: 'crosshair',
+          zIndex: 1000,
+          animation: 'handlePulse 2s infinite',
+        }}
+        onMouseEnter={(e) => {
+          const target = e.target as HTMLElement
+          target.style.transform = 'scale(1.5)'
+          target.style.boxShadow = '0 0 20px rgba(102, 126, 234, 1), 0 0 40px rgba(102, 126, 234, 0.8)'
+          target.style.background = 'linear-gradient(45deg, #764ba2, #667eea)'
+        }}
+        onMouseLeave={(e) => {
+          const target = e.target as HTMLElement
+          target.style.transform = 'scale(1)'
+          target.style.boxShadow = '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)'
+          target.style.background = 'linear-gradient(45deg, #667eea, #764ba2)'
+        }}
+      />
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-          {tools.slice(0, 3).map((tool: string) => (
-            <Chip
-              key={tool}
-              label={tool}
-              size="small"
+      <Card
+        sx={{
+          minWidth: 200,
+          border: selected ? '2px solid #667eea' : '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          transition: 'all 0.3s ease',
+          position: 'relative',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            transform: 'scale(1.02)',
+            '&::before': {
+              content: '"← CONNECT"',
+              position: 'absolute',
+              left: -60,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '10px',
+              color: '#667eea',
+              fontWeight: 'bold',
+              animation: 'pulse 1.5s infinite',
+            },
+            '&::after': {
+              content: '"CONNECT →"',
+              position: 'absolute',
+              right: -60,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '10px',
+              color: '#667eea',
+              fontWeight: 'bold',
+              animation: 'pulse 1.5s infinite',
+            },
+          },
+          '@keyframes pulse': {
+            '0%': { opacity: 0.5 },
+            '50%': { opacity: 1 },
+            '100%': { opacity: 0.5 },
+          },
+        }}
+      >
+        <CardContent sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="h6" sx={{ fontSize: '24px' }}>
+              {getTypeIcon(agentType)}
+            </Typography>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" sx={{ fontSize: '14px', fontWeight: 600 }}>
+                {label}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+                {agentType}
+              </Typography>
+            </Box>
+            <Box
               sx={{
-                fontSize: '10px',
-                height: '20px',
-                backgroundColor: 'rgba(102, 126, 234, 0.2)',
-                color: 'white',
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: getStatusColor(status),
+                boxShadow: `0 0 8px ${getStatusColor(status)}`,
               }}
             />
-          ))}
-          {tools.length > 3 && (
-            <Chip
-              label={`+${tools.length - 3}`}
-              size="small"
-              sx={{
-                fontSize: '10px',
-                height: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-              }}
-            />
-          )}
-        </Box>
-      </CardContent>
-    </Card>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+            {tools.slice(0, 3).map((tool: string) => (
+              <Chip
+                key={tool}
+                label={tool}
+                size="small"
+                sx={{
+                  fontSize: '10px',
+                  height: '20px',
+                  backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                  color: 'white',
+                }}
+              />
+            ))}
+            {tools.length > 3 && (
+              <Chip
+                label={`+${tools.length - 3}`}
+                size="small"
+                sx={{
+                  fontSize: '10px',
+                  height: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                }}
+              />
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    </>
   )
 }
 
@@ -169,6 +256,15 @@ const FlowContent: React.FC = () => {
     }
   )
 
+  // Fetch active collaborations
+  const { data: activeCollaborationsData } = useQuery(
+    'active-collaborations',
+    agentApi.getActiveCollaborations,
+    {
+      refetchInterval: 5000,
+    }
+  )
+
   // Mutations
   const startAgentMutation = useMutation(agentApi.startAgent, {
     onSuccess: () => {
@@ -191,18 +287,35 @@ const FlowContent: React.FC = () => {
   })
 
   const collaborationMutation = useMutation(
-    ({ agent1, agent2, message }: { agent1: string; agent2: string; message: string }) =>
-      agentApi.collaborateAgents(agent1, agent2, message),
+    ({ agent1, agent2, message }: { agent1: string; agent2: string; message?: string }) =>
+      agentApi.collaborateAgents(agent1, agent2, message || ''),
     {
       onSuccess: (data) => {
-        toast.success('Collaboration initiated successfully!')
+        toast.success('Collaboration thread established successfully!')
         setCollaborationDialog(false)
         setCollaborationMessage('')
-        // You could show the collaboration result in a separate dialog
+        // Refresh the collaboration data to show new connections
+        queryClient.invalidateQueries('collaboration-graph')
+        queryClient.invalidateQueries('active-collaborations')
         console.log('Collaboration result:', data)
       },
-      onError: () => {
-        toast.error('Failed to initiate collaboration')
+      onError: (error: any) => {
+        toast.error(`Failed to establish collaboration: ${error?.response?.data?.detail || error.message}`)
+      },
+    }
+  )
+
+  const removeCollaborationMutation = useMutation(
+    ({ agent1, agent2 }: { agent1: string; agent2: string }) =>
+      agentApi.removeCollaboration(agent1, agent2),
+    {
+      onSuccess: (data) => {
+        toast.success('Collaboration thread removed successfully!')
+        queryClient.invalidateQueries('active-collaborations')
+        console.log('Collaboration removed:', data)
+      },
+      onError: (error: any) => {
+        toast.error(`Failed to remove collaboration: ${error?.response?.data?.detail || error.message}`)
       },
     }
   )
@@ -230,60 +343,102 @@ const FlowContent: React.FC = () => {
 
     setNodes(newNodes)
 
-    // Generate edges from collaboration graph
-    if (collaborationData?.collaboration_graph) {
-      const newEdges: Edge[] = []
-      Object.entries(collaborationData.collaboration_graph).forEach(([agentName, agentInfo]) => {
-        agentInfo.can_collaborate_with.forEach((targetAgent: string) => {
-          if (agentsData.agents[targetAgent]) {
-            newEdges.push({
-              id: `${agentName}-${targetAgent}`,
-              source: agentName,
-              target: targetAgent,
-              type: 'smoothstep',
-              animated: true,
-              style: {
-                stroke: '#667eea',
-                strokeWidth: 2,
-                strokeDasharray: '5,5',
-              },
-              label: agentInfo.collaboration_style,
-              labelStyle: {
-                fill: '#ffffff',
-                fontSize: '12px',
-                fontWeight: 600,
-              },
-              labelBgStyle: {
-                fill: 'rgba(102, 126, 234, 0.8)',
-                fillOpacity: 0.8,
-              },
-            })
-          }
-        })
+        // Generate edges from active collaborations only (no default/potential threads)
+    const newEdges: Edge[] = []
+
+    // Add active collaboration edges (solid, prominent)
+    if (activeCollaborationsData?.active_collaborations) {
+      Object.values(activeCollaborationsData.active_collaborations).forEach((collab: any) => {
+        if (agentsData.agents[collab.agent1] && agentsData.agents[collab.agent2]) {
+          newEdges.push({
+            id: `active-${collab.agent1}-${collab.agent2}`,
+            source: collab.agent1,
+            target: collab.agent2,
+            type: 'smoothstep',
+            animated: true,
+            style: {
+              stroke: '#4caf50',
+              strokeWidth: 3,
+            },
+            label: 'Active Thread',
+            labelStyle: {
+              fill: '#ffffff',
+              fontSize: '12px',
+              fontWeight: 600,
+            },
+            labelBgStyle: {
+              fill: 'rgba(76, 175, 80, 0.8)',
+              fillOpacity: 0.8,
+            },
+          })
+        }
       })
-      setEdges(newEdges)
     }
-  }, [agentsData, collaborationData, setNodes, setEdges])
+
+    setEdges(newEdges)
+  }, [agentsData, collaborationData, activeCollaborationsData, setNodes, setEdges])
 
   const onConnect = useCallback(
-    (params: Connection) => {
+    async (params: Connection) => {
       if (!params.source || !params.target) return
-      const edge: Edge = {
-        id: `${params.source}-${params.target}`,
-        source: params.source,
-        target: params.target,
-        type: 'smoothstep',
-        animated: true,
-        style: { stroke: '#667eea', strokeWidth: 2 },
+
+      // Check if both agents are running
+      const sourceAgent = agentsData?.agents[params.source]
+      const targetAgent = agentsData?.agents[params.target]
+
+      if (!sourceAgent || !targetAgent) {
+        toast.error('One or both agents not found')
+        return
       }
-      setEdges((eds) => addEdge(edge, eds))
+
+      if (sourceAgent.status !== 'running' || targetAgent.status !== 'running') {
+        toast.error('Both agents must be running to establish collaboration')
+        return
+      }
+
+      // Check if connection already exists
+      const existingEdge = edges.find(edge =>
+        (edge.source === params.source && edge.target === params.target) ||
+        (edge.source === params.target && edge.target === params.source)
+      )
+
+      if (existingEdge) {
+        toast('Collaboration already exists between these agents', { icon: 'ℹ️' })
+        return
+      }
+
+      // Establish collaboration
+      try {
+        await collaborationMutation.mutateAsync({
+          agent1: params.source,
+          agent2: params.target,
+          message: `Thread connection established between ${params.source} and ${params.target}`
+        })
+
+        // The edge will be automatically added when active collaborations are refreshed
+
+      } catch (error) {
+        console.error('Failed to establish collaboration:', error)
+      }
     },
-    [setEdges]
+    [setEdges, agentsData, edges, collaborationMutation]
   )
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedAgent(node.id)
   }, [])
+
+  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    if (edge.id.startsWith('active-')) {
+      const confirmed = window.confirm('Remove this collaboration thread?')
+      if (confirmed) {
+        removeCollaborationMutation.mutate({
+          agent1: edge.source,
+          agent2: edge.target
+        })
+      }
+    }
+  }, [removeCollaborationMutation])
 
   const handleStartAgent = async (agentName: string) => {
     await startAgentMutation.mutateAsync(agentName)
@@ -294,15 +449,28 @@ const FlowContent: React.FC = () => {
   }
 
   const handleCollaboration = () => {
-    if (!selectedAgent || !collaborationTarget || !collaborationMessage) {
-      toast.error('Please fill in all fields')
+    if (!selectedAgent || !collaborationTarget) {
+      toast.error('Please select a target agent')
       return
     }
 
     collaborationMutation.mutate({
       agent1: selectedAgent,
       agent2: collaborationTarget,
-      message: collaborationMessage,
+      message: collaborationMessage || `Thread connection established between ${selectedAgent} and ${collaborationTarget}`,
+    })
+  }
+
+  const handleQuickConnect = () => {
+    if (!selectedAgent || !collaborationTarget) {
+      toast.error('Please select a target agent')
+      return
+    }
+
+    collaborationMutation.mutate({
+      agent1: selectedAgent,
+      agent2: collaborationTarget,
+      message: `Quick thread connection established between ${selectedAgent} and ${collaborationTarget}`,
     })
   }
 
@@ -319,23 +487,52 @@ const FlowContent: React.FC = () => {
   const availableAgents = Object.keys(agentsData?.agents || {}).filter(name => name !== selectedAgent)
 
   return (
-    <Box sx={{ height: '80vh', width: '100%', position: 'relative' }}>
-      {/* Control Panel */}
-      <Card
+    <Box sx={{
+      height: '100vh',
+      width: '100%',
+      display: 'flex',
+      '@keyframes handlePulse': {
+        '0%': {
+          boxShadow: '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)',
+          transform: 'scale(1)'
+        },
+        '50%': {
+          boxShadow: '0 0 25px rgba(102, 126, 234, 1), 0 0 50px rgba(102, 126, 234, 0.8)',
+          transform: 'scale(1.1)'
+        },
+        '100%': {
+          boxShadow: '0 0 15px rgba(102, 126, 234, 1), 0 0 30px rgba(102, 126, 234, 0.5)',
+          transform: 'scale(1)'
+        },
+      }
+    }}>
+      {/* Sidebar Control Panel */}
+      <Box
         sx={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          zIndex: 1000,
-          minWidth: 300,
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          width: 350,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
           backdropFilter: 'blur(10px)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          overflowY: 'auto',
+          p: 2,
         }}
       >
+        <Card
+          sx={{
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
         <CardContent>
           <Typography variant="h6" gutterBottom>
             Agent Network
           </Typography>
+
+          <Alert severity="info" sx={{ mb: 2, fontSize: '12px' }}>
+            💡 <strong>Connect:</strong> Look for the bright blue glowing circles on agent sides - drag from RIGHT circle to LEFT circle of another agent<br/>
+            🗑️ <strong>Remove:</strong> Click on a green collaboration thread to remove it<br/>
+            ✨ <strong>Tip:</strong> Hover over agents to see connection hints!
+          </Alert>
 
           {selectedAgent && selectedAgentData && (
             <Box sx={{ mb: 2 }}>
@@ -388,22 +585,35 @@ const FlowContent: React.FC = () => {
             </IconButton>
           </Box>
         </CardContent>
-      </Card>
+        </Card>
+      </Box>
 
-      {/* React Flow */}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        nodeTypes={nodeTypes}
-        fitView
-        style={{
-          backgroundColor: 'transparent',
-        }}
-      >
+      {/* React Flow Container */}
+      <Box sx={{ flex: 1, position: 'relative' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          connectOnClick={false}
+          nodesDraggable={true}
+          nodesConnectable={true}
+          elementsSelectable={true}
+          connectionLineStyle={{
+            stroke: '#667eea',
+            strokeWidth: 3,
+            strokeDasharray: '5,5',
+          }}
+          connectionLineType="smoothstep"
+          style={{
+            backgroundColor: 'transparent',
+          }}
+        >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(255, 255, 255, 0.1)" />
         <Controls />
         <MiniMap
@@ -414,7 +624,8 @@ const FlowContent: React.FC = () => {
           nodeColor="#667eea"
           maskColor="rgba(0, 0, 0, 0.8)"
         />
-      </ReactFlow>
+        </ReactFlow>
+      </Box>
 
       {/* Collaboration Dialog */}
       <Dialog
@@ -434,7 +645,7 @@ const FlowContent: React.FC = () => {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <Alert severity="info">
-              Initiate collaboration between {selectedAgent} and another agent
+              Establish collaboration thread between {selectedAgent} and another agent
             </Alert>
 
             <TextField
@@ -454,24 +665,33 @@ const FlowContent: React.FC = () => {
             </TextField>
 
             <TextField
-              label="Collaboration Message"
+              label="Collaboration Message (Optional)"
               multiline
               rows={3}
               value={collaborationMessage}
               onChange={(e) => setCollaborationMessage(e.target.value)}
-              placeholder="Enter the message for collaboration..."
+              placeholder="Enter a message for collaboration (optional)..."
               fullWidth
+              helperText="Leave empty for a simple thread connection"
             />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCollaborationDialog(false)}>Cancel</Button>
           <Button
+            onClick={handleQuickConnect}
+            variant="outlined"
+            disabled={collaborationMutation.isLoading || !collaborationTarget}
+            sx={{ mr: 1 }}
+          >
+            {collaborationMutation.isLoading ? 'Connecting...' : 'Quick Connect'}
+          </Button>
+          <Button
             onClick={handleCollaboration}
             variant="contained"
-            disabled={collaborationMutation.isLoading || !collaborationTarget || !collaborationMessage}
+            disabled={collaborationMutation.isLoading || !collaborationTarget}
           >
-            {collaborationMutation.isLoading ? 'Sending...' : 'Send Collaboration'}
+            {collaborationMutation.isLoading ? 'Establishing...' : 'Establish Thread'}
           </Button>
         </DialogActions>
       </Dialog>

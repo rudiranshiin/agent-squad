@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from .context_engine import ContextEngine
-from .memory_manager import MemoryManager
+
 from .tool_registry import ToolRegistry
 from .llm_client import get_llm_client, LLMMessage, LLMResponse
 from ..utils.config_loader import ConfigLoader
@@ -22,7 +22,6 @@ class BaseAgent(ABC):
 
     Features:
     - Context engineering with intelligent management
-    - Memory system with semantic search
     - Tool integration and execution
     - Inter-agent communication
     - Configuration-driven setup
@@ -40,10 +39,7 @@ class BaseAgent(ABC):
             max_items=self.config.get("max_context_items", 100)
         )
 
-        self.memory_manager = MemoryManager(
-            agent_name=self.name,
-            max_memories=self.config.get("max_memories", 1000)
-        )
+
 
         self.tool_registry = ToolRegistry()
 
@@ -155,18 +151,7 @@ class BaseAgent(ABC):
                 }
             )
 
-            # Retrieve relevant memories
-            memories = await self.memory_manager.retrieve_relevant_memories(
-                message,
-                max_results=self.config.get("memory_config", {}).get("context_window", 5)
-            )
 
-            for memory in memories:
-                self.context_engine.add_memory_context(
-                    memory.content,
-                    relevance_score=memory.relevance_score,
-                    metadata={"memory_id": memory.id}
-                )
 
             # Pre-process with agent-specific logic
             await self.pre_process(message, context)
@@ -177,9 +162,7 @@ class BaseAgent(ABC):
             # Post-process
             final_response = await self.post_process(response, message, context)
 
-            # Store interaction in memory
-            if self.config.get("memory_config", {}).get("remember_conversations", True):
-                await self.memory_manager.store_interaction(message, final_response)
+
 
             # Add processing metadata
             final_response["processing_time"] = time.time() - start_time
@@ -437,12 +420,12 @@ class BaseAgent(ABC):
             "type": self.agent_type,
             "is_running": self._is_running,
             "context_summary": self.context_engine.get_context_summary(),
-            "memory_stats": await self.memory_manager.get_memory_stats(),
+
             "tool_stats": self.tool_registry.get_execution_statistics(),
             "active_collaborations": len(self._collaboration_sessions),
             "configuration": {
                 "max_context_length": self.context_engine.max_context_length,
-                "max_memories": self.memory_manager.max_memories,
+
                 "available_tools": self.tool_registry.list_tools()
             }
         }

@@ -52,6 +52,10 @@ class LanguageTeacherAgent(BaseAgent):
             if context.get("internal_health_check"):
                 return {"response": "Language teacher is ready to help students learn!", "success": True}
 
+            # Check if this is a collaboration mode (multi-agent response)
+            if context.get("collaboration_mode"):
+                return await self._handle_collaboration_mode(message, context)
+
             # Analyze the student's input for learning opportunities
             analysis_result = await self._analyze_student_input(message)
 
@@ -394,6 +398,56 @@ I'm currently experiencing some technical difficulties, but I can still provide 
 {self._get_default_teaching_response()}
 
 Please try again in a moment, and I'll be able to provide more personalized feedback!"""
+
+    async def _handle_collaboration_mode(self, message: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle collaboration mode where multiple agents work together on a response.
+
+        Args:
+            message: User's message
+            context: Collaboration context
+
+        Returns:
+            Teaching response with collaboration awareness
+        """
+        collaborating_agents = context.get("collaborating_agents", [])
+
+        # Analyze the student's input for learning opportunities
+        analysis_result = await self._analyze_student_input(message)
+
+        # Generate educational response with collaboration awareness
+        teaching_response = await self._generate_teaching_response(message, analysis_result)
+
+        # Add collaboration context to the response
+        if self.primary_language.startswith("zh") and "professor_james" in collaborating_agents:
+            # Chinese teacher working with British teacher
+            teaching_response["text"] += f"\n\n*I notice Professor James is also here to help. He can assist with English pronunciation and grammar while I focus on Chinese language learning.*"
+        elif self.primary_language.startswith("en") and "teacher_li" in collaborating_agents:
+            # British teacher working with Chinese teacher
+            teaching_response["text"] += f"\n\n*Teacher Li is also available to help with Chinese language questions. I'll focus on English language instruction and cultural context.*"
+
+        # Add educational metadata
+        response = {
+            "response": teaching_response["text"],
+            "analysis": analysis_result,
+            "teaching_points": teaching_response.get("teaching_points", []),
+            "corrections": teaching_response.get("corrections", []),
+            "cultural_notes": teaching_response.get("cultural_notes", []),
+            "next_steps": teaching_response.get("next_steps", []),
+            "collaboration_mode": True,
+            "collaborating_agents": collaborating_agents,
+            "success": True
+        }
+
+        # Track tools used
+        tools_used = []
+        if analysis_result.get("grammar_checked"):
+            tools_used.append("grammar_checker")
+        if analysis_result.get("pronunciation_analyzed"):
+            tools_used.append("pronunciation_tool")
+
+        response["tools_used"] = tools_used
+        return response
 
     async def _handle_collaboration(self, message: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """

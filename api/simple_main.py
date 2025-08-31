@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 import time
 import random
-import uuid
 from datetime import datetime
 import sys
 import os
@@ -67,9 +66,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize real agents if available
+# Initialize real agents (will be loaded during startup)
 real_agents = {}
-if REAL_AGENTS_AVAILABLE:
+registry = None
+
+# Store active collaborations
+active_collaborations = {}
+
+async def load_real_agents():
+    """Load real agents during startup."""
+    global real_agents, registry
+
+    if not REAL_AGENTS_AVAILABLE:
+        return
+
     try:
         registry = AgentRegistry()
         config_dir = project_root / "agents" / "configs"
@@ -77,17 +87,19 @@ if REAL_AGENTS_AVAILABLE:
         # Load available agent configs
         available_configs = {
             "professor_james": "british_teacher.yaml",
-            "teacher_mei": "chinese_teacher.yaml",
-            "weather_assistant": "weather_agent.yaml"
+            "teacher_li": "chinese_teacher.yaml",
+            "weather_bot": "weather_agent.yaml"
         }
 
         for agent_id, config_file in available_configs.items():
             config_path = config_dir / config_file
             if config_path.exists():
                 try:
-                    agent = registry.load_agent(str(config_path))
+                    agent = await registry.create_agent_from_config(str(config_path))
+                    # Start the agent automatically
+                    await registry.start_agent(agent.name)
                     real_agents[agent_id] = agent
-                    print(f"✅ Loaded real agent: {agent_id}")
+                    print(f"✅ Loaded and started real agent: {agent_id}")
                 except Exception as e:
                     print(f"❌ Failed to load agent {agent_id}: {e}")
 
@@ -247,8 +259,18 @@ class AgentCreateRequest(BaseModel):
     module_name: str
     config: Dict[str, Any]
 
+class CollaborativeMessageRequest(BaseModel):
+    primary_agent: str
+    message: str
+    collaborating_agents: List[str]
+
+class CollabMessageRequest(BaseModel):
+    primary_agent: str
+    text: str
+    collaborating_agents: List[str]
+
 # Helper Functions
-async def generate_agent_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+async def generate_agent_response(agent_name: str, message: str, context: Dict[str, Any] = None, user_id: str = None) -> Dict[str, Any]:
     """Generate response using real agent if available, otherwise use mock"""
     context = context or {}
 
@@ -256,7 +278,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     if REAL_AGENTS_AVAILABLE and agent_name in real_agents:
         try:
             agent = real_agents[agent_name]
-            response = await agent.process_message(message, context)
+            response = await agent.process_message(message, context, user_id)
 
             return {
                 "response": response.get("response", "I apologize, but I couldn't generate a response."),
@@ -276,7 +298,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     # Try standalone LLM client
     if STANDALONE_LLM_AVAILABLE:
         try:
-            return await _generate_standalone_llm_response(agent_name, message, context)
+            return await _generate_standalone_llm_response(agent_name, message, context, user_id)
         except Exception as e:
             print(f"❌ Standalone LLM failed: {e}")
             # Fall back to mock response
@@ -284,7 +306,7 @@ async def generate_agent_response(agent_name: str, message: str, context: Dict[s
     # Use mock response
     return _generate_mock_response(agent_name, message)
 
-async def _generate_standalone_llm_response(agent_name: str, message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+async def _generate_standalone_llm_response(agent_name: str, message: str, context: Dict[str, Any] = None, user_id: str = None) -> Dict[str, Any]:
     """Generate response using standalone LLM client."""
     import time
     start_time = time.time()
@@ -697,24 +719,29 @@ async def llm_status():
 
 @app.get("/agents")
 async def list_agents():
-    # Combine real and mock agents
     all_agents = {}
 
-    # Add real agents
-    if REAL_AGENTS_AVAILABLE:
+    # Add real agents if available
+    if REAL_AGENTS_AVAILABLE and real_agents:
         for agent_id, agent in real_agents.items():
+            # Check if agent is actually running in the registry
+            is_running = agent.name in registry._running_agents if registry else False
             all_agents[agent_id] = {
                 "name": agent.name,
                 "type": agent.agent_type,
-                "status": "running",
+                "status": "running" if is_running else "stopped",
                 "real_agent": True,
                 "llm_enabled": True,
-                "context_summary": agent.context_engine.get_context_summary() if hasattr(agent, 'context_engine') else {}
+                "context_summary": agent.context_engine.get_context_summary() if hasattr(agent, 'context_engine') else {},
+                "personality": getattr(agent, 'personality', {}),
+                "tools": agent.tool_registry.list_tools() if hasattr(agent, 'tool_registry') else [],
+                "memory_stats": {"conversations": 0, "facts": 0, "preferences": 0}  # Placeholder
             }
-
-    # Add mock agents that don't have real counterparts
-    for agent_id, agent_data in mock_agents.items():
-        if agent_id not in all_agents:
+        print(f"✅ Returning {len(all_agents)} real agents: {list(all_agents.keys())}")
+    else:
+        # Only show mock agents if no real agents are available
+        print("⚠️  No real agents available, showing mock agents")
+        for agent_id, agent_data in mock_agents.items():
             agent_data = agent_data.copy()
             agent_data["real_agent"] = False
             agent_data["llm_enabled"] = False
@@ -728,26 +755,227 @@ async def get_agent_info(agent_name: str):
         raise HTTPException(status_code=404, detail="Agent not found")
     return mock_agents[agent_name]
 
-@app.post("/agents/{agent_name}/message")
-async def send_message_to_agent(agent_name: str, message_data: MessageRequest):
-    # Check if agent exists (in real agents or mock agents)
-    agent_exists = (agent_name in real_agents) if REAL_AGENTS_AVAILABLE else (agent_name in mock_agents)
+@app.post("/agents/collaboration/message")
+async def send_collaborative_message(request_data: CollabMessageRequest):
+    """
+    Send a message that involves collaboration between multiple agents.
+    """
+    primary_agent = request_data.primary_agent
+    message = request_data.text
+    collaborating_agents = request_data.collaborating_agents
 
-    if not agent_exists:
+    # Check if agent exists and is running
+    if REAL_AGENTS_AVAILABLE and real_agents and primary_agent in real_agents:
+        # Real agent - check if it's running in the registry
+        real_agent = real_agents[primary_agent]
+        if registry and real_agent.name not in registry._running_agents:
+            raise HTTPException(status_code=400, detail="Agent is not running")
+    elif primary_agent in mock_agents:
+        # Mock agent - check status
+        agent = mock_agents[primary_agent]
+        if agent["status"] != "running":
+            raise HTTPException(status_code=400, detail="Agent is not running")
+    else:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # For mock agents, check status
-    if agent_name in mock_agents:
+    # Actually facilitate collaboration between agents
+    try:
+        # Check if we have real agents
+        if REAL_AGENTS_AVAILABLE and primary_agent in real_agents:
+            primary_real_agent = real_agents[primary_agent]
+
+            # Step 1: Check if primary agent should handle this or delegate to collaborator
+            # For language questions, check if the question is about a language the primary agent doesn't specialize in
+            should_delegate = False
+            delegate_to = None
+
+            # Simple language detection for delegation
+            if primary_agent == "professor_james":
+                chinese_keywords = ["chinese", "中文", "名字", "pinyin", "mandarin", "李老师", "teacher li"]
+                if any(keyword in message.lower() for keyword in chinese_keywords):
+                    should_delegate = True
+                    delegate_to = "teacher_li"
+            elif primary_agent == "teacher_li":
+                english_keywords = ["english", "british", "professor james", "grammar", "pronunciation"]
+                if any(keyword in message.lower() for keyword in english_keywords):
+                    should_delegate = True
+                    delegate_to = "professor_james"
+
+            if should_delegate and delegate_to in real_agents:
+                # Delegate to the appropriate specialist
+                original_primary_agent = primary_agent  # Store the original agent (professor_james)
+                primary_real_agent = real_agents[delegate_to]
+                primary_agent = delegate_to  # Switch to the specialist (teacher_li)
+                # Add the original agent to collaborating agents if not already there
+                if original_primary_agent not in collaborating_agents:
+                    collaborating_agents.append(original_primary_agent)
+                # Remove the delegate from collaborating agents to avoid duplication
+                collaborating_agents = [agent for agent in collaborating_agents if agent != delegate_to]
+
+            # Send message to primary agent with collaboration context
+            collaboration_context = {
+                "collaboration_mode": True,
+                "collaborating_agents": collaborating_agents,
+                "collaboration_type": "multi_agent_response"
+            }
+
+            primary_response = await primary_real_agent.process_message(
+                message,
+                collaboration_context,
+                "ui-user"
+            )
+
+            # Step 2: Get responses from collaborating agents
+            collaborative_responses = []
+            for collab_agent_name in collaborating_agents:
+                if collab_agent_name != primary_agent and collab_agent_name in real_agents:
+                    collab_agent = real_agents[collab_agent_name]
+
+                    # Create collaboration message for the other agent
+                    collab_message = f"A user asked: '{message}'. {primary_agent} responded: '{primary_response.get('response', '')}'. Please provide your perspective or additional information."
+
+                    collab_context = {
+                        "collaboration_from": primary_agent,
+                        "collaboration_type": "response_enhancement",
+                        "original_message": message,
+                        "primary_response": primary_response.get("response", "")
+                    }
+
+                    try:
+                        collab_response = await collab_agent.process_message(
+                            collab_message,
+                            collab_context,
+                            "ui-user"
+                        )
+                        collaborative_responses.append({
+                            "agent": collab_agent_name,
+                            "response": collab_response.get("response", "")
+                        })
+                    except Exception as e:
+                        print(f"Error getting response from {collab_agent_name}: {e}")
+
+            # Step 3: Combine responses
+            combined_response = primary_response.get("response", "")
+
+            if collaborative_responses:
+                combined_response += "\n\n---\n\n"
+                for collab in collaborative_responses:
+                    combined_response += f"**{collab['agent']} adds:**\n{collab['response']}\n\n"
+
+            return {
+                "response": combined_response,
+                "agent_name": primary_agent,
+                "agent_type": primary_real_agent.agent_type,
+                "processing_time": primary_response.get("processing_time", 0.0),
+                "collaboration_mode": True,
+                "collaborating_agents": collaborating_agents,
+                "collaborative_responses": collaborative_responses,
+                "suggestions": primary_response.get("suggestions", []),
+                "tool_results": primary_response.get("tool_results", []),
+                "context_summary": primary_response.get("context_summary", {}),
+                "success": primary_response.get("success", False)
+            }
+        else:
+            # Mock collaborative response - simulate actual agent collaboration
+            processing_time = random.uniform(0.5, 2.0)
+
+            # Generate primary response
+            primary_mock_response = ""
+            if primary_agent == "professor_james":
+                primary_mock_response = f"Ah, excellent question! In British English, we say 'name' - quite straightforward, really. Now, let me consult with my colleague Teacher Li for the Chinese translation."
+            elif primary_agent == "teacher_li":
+                primary_mock_response = f"Great question! In Chinese, 'name' is called '名字' (míngzi). Let me work with Professor James to give you both perspectives."
+
+            # Generate collaborative responses
+            collaborative_mock_responses = []
+            for collab_agent in collaborating_agents:
+                if collab_agent != primary_agent:
+                    if collab_agent == "teacher_li":
+                        collab_response = f"**Teacher Li adds:**\nIn Chinese, 'name' is '名字' (míngzi). The character '名' means 'name' and '字' means 'character' or 'word'. So literally it means 'name-word'. We also have '姓名' (xìngmíng) which is more formal and includes both family name and given name."
+                        collaborative_mock_responses.append(collab_response)
+                    elif collab_agent == "professor_james":
+                        collab_response = f"**Professor James adds:**\nIn British English, we have several ways to ask for someone's name: 'What's your name?', 'May I ask your name?', or more formally 'Could you please state your name?' The word 'name' comes from Old English 'nama', related to German 'Name'."
+                        collaborative_mock_responses.append(collab_response)
+
+            # Combine responses
+            collaborative_response = primary_mock_response
+            if collaborative_mock_responses:
+                collaborative_response += "\n\n---\n\n" + "\n\n".join(collaborative_mock_responses)
+
+            return {
+                "response": collaborative_response,
+                "agent_name": primary_agent,
+                "agent_type": mock_agents[primary_agent]["type"],
+                "processing_time": processing_time,
+                "collaboration_mode": True,
+                "collaborating_agents": collaborating_agents,
+                "suggestions": [
+                    "Ask about language learning strategies",
+                    "Compare teaching approaches",
+                    "Request cultural insights",
+                    "Practice conversation skills"
+                ],
+                "tool_results": [{"collaboration": "active", "agents_involved": len(collaborating_agents)}],
+                "context_summary": {"collaborative_session": True},
+                "success": True
+            }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in collaborative messaging: {str(e)}")
+
+@app.post("/agents/{agent_name}/message")
+async def send_message_to_agent(agent_name: str, message_data: MessageRequest):
+    # Check if agent exists and is running
+    if REAL_AGENTS_AVAILABLE and real_agents and agent_name in real_agents:
+        # Real agent - check if it's running in the registry
+        real_agent = real_agents[agent_name]
+        if registry and real_agent.name not in registry._running_agents:
+            raise HTTPException(status_code=400, detail="Agent is not running")
+    elif agent_name in mock_agents:
+        # Mock agent - check status
         agent = mock_agents[agent_name]
         if agent["status"] != "running":
             raise HTTPException(status_code=400, detail="Agent is not running")
+    else:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # # Check for automatic delegation opportunities
+    # message = message_data.text
+    # should_delegate = False
+    # delegate_to = None
+
+    # if REAL_AGENTS_AVAILABLE and agent_name in real_agents:
+    #     # Simple language detection for delegation
+    #     if agent_name == "professor_james":
+    #         chinese_keywords = ["chinese", "中文", "名字", "pinyin", "mandarin", "李老师", "teacher li"]
+    #         if any(keyword in message.lower() for keyword in chinese_keywords):
+    #             should_delegate = True
+    #             delegate_to = "teacher_li"
+    #     elif agent_name == "teacher_li":
+    #         english_keywords = ["english", "british", "professor james", "grammar", "pronunciation"]
+    #         if any(keyword in message.lower() for keyword in english_keywords):
+    #             should_delegate = True
+    #             delegate_to = "professor_james"
+
+    #     # If delegation is needed and target agent is available, redirect to collaborative endpoint
+    #     if should_delegate and delegate_to in real_agents:
+    #         print(f"🔄 Auto-delegating from {agent_name} to {delegate_to} for message: {message}")
+    #         # Create collaborative request
+    #         collab_request = CollabMessageRequest(
+    #             primary_agent=agent_name,
+    #             text=message,
+    #             collaborating_agents=[delegate_to]
+    #         )
+    #         # Call the collaborative endpoint
+    #         return await send_collaborative_message(collab_request)
 
     # Generate response using real or mock agent
     try:
         response_data = await generate_agent_response(
             agent_name,
             message_data.text,
-            message_data.context
+            message_data.context,
+            message_data.user_id
         )
 
         # Add mock suggestions if not provided by real agent
@@ -882,8 +1110,179 @@ async def get_collaboration_graph():
                 "can_collaborate_with": ["chef_marco", "weather_bot"],
                 "collaboration_style": "mystical"
             }
-        }
+            }
+}
+
+@app.post("/agents/{agent1}/collaborate/{agent2}")
+async def collaborate_agents(agent1: str, agent2: str, message_data: dict = None):
+    """
+    Initiate collaboration between two agents.
+    """
+    # Check if both agents exist and are running
+    agent1_found = False
+    agent2_found = False
+    agent1_running = False
+    agent2_running = False
+
+    # Check real agents first
+    if REAL_AGENTS_AVAILABLE and real_agents:
+        if agent1 in real_agents:
+            agent1_found = True
+            agent1_running = registry and real_agents[agent1].name in registry._running_agents
+        if agent2 in real_agents:
+            agent2_found = True
+            agent2_running = registry and real_agents[agent2].name in registry._running_agents
+
+    # Check mock agents if not found in real agents
+    if not agent1_found and agent1 in mock_agents:
+        agent1_found = True
+        agent1_running = mock_agents[agent1]["status"] == "running"
+    if not agent2_found and agent2 in mock_agents:
+        agent2_found = True
+        agent2_running = mock_agents[agent2]["status"] == "running"
+
+    # Validate agents exist
+    if not agent1_found:
+        raise HTTPException(status_code=404, detail=f"Agent {agent1} not found")
+    if not agent2_found:
+        raise HTTPException(status_code=404, detail=f"Agent {agent2} not found")
+
+    # Validate agents are running
+    if not agent1_running:
+        raise HTTPException(status_code=400, detail=f"Agent {agent1} is not running")
+    if not agent2_running:
+        raise HTTPException(status_code=400, detail=f"Agent {agent2} is not running")
+
+    # Try real agent collaboration first
+    if REAL_AGENTS_AVAILABLE and registry:
+        try:
+            result = await registry.facilitate_collaboration(
+                agent1, agent2, message_data.get("message", "") if message_data else ""
+            )
+            if result.get("success"):
+                collaboration_id = f"{agent1}-{agent2}-{int(time.time())}"
+
+                # Store the active collaboration
+                active_collaborations[collaboration_id] = {
+                    "agent1": agent1,
+                    "agent2": agent2,
+                    "established_at": time.time(),
+                    "status": "active"
+                }
+
+                return {
+                    "success": True,
+                    "message": f"Collaboration established between {agent1} and {agent2}",
+                    "collaboration_id": collaboration_id,
+                    "result": result,
+                    "real_collaboration": True
+                }
+        except Exception as e:
+            print(f"Real collaboration failed: {e}")
+
+    # Mock collaboration response
+    collaboration_id = f"{agent1}-{agent2}-{int(time.time())}"
+
+    # Get agent data from real agents or mock agents
+    agent1_data = None
+    agent2_data = None
+
+    if REAL_AGENTS_AVAILABLE and agent1 in real_agents:
+        agent1_data = {"type": real_agents[agent1].agent_type}
+    elif agent1 in mock_agents:
+        agent1_data = mock_agents[agent1]
+
+    if REAL_AGENTS_AVAILABLE and agent2 in real_agents:
+        agent2_data = {"type": real_agents[agent2].agent_type}
+    elif agent2 in mock_agents:
+        agent2_data = mock_agents[agent2]
+
+    collaboration_response = {
+        "success": True,
+        "message": f"Collaboration thread established between {agent1} and {agent2}",
+        "collaboration_id": collaboration_id,
+        "participants": [
+            {
+                "name": agent1,
+                "type": agent1_data["type"],
+                "role": "initiator"
+            },
+            {
+                "name": agent2,
+                "type": agent2_data["type"],
+                "role": "collaborator"
+            }
+        ],
+        "collaboration_type": "thread_connection",
+        "established_at": time.time(),
+        "status": "active",
+        "real_collaboration": False
     }
+
+    # Store the active collaboration
+    active_collaborations[collaboration_id] = {
+        "agent1": agent1,
+        "agent2": agent2,
+        "established_at": time.time(),
+        "status": "active"
+    }
+
+    return collaboration_response
+
+
+
+@app.get("/agents/collaboration/active")
+async def get_active_collaborations():
+    """Get all active collaboration threads."""
+    return {
+        "active_collaborations": active_collaborations,
+        "total_active": len(active_collaborations)
+    }
+
+@app.delete("/agents/collaboration/{collaboration_id}")
+async def remove_collaboration(collaboration_id: str):
+    """Remove an active collaboration thread."""
+    if collaboration_id in active_collaborations:
+        removed_collab = active_collaborations.pop(collaboration_id)
+        return {
+            "success": True,
+            "message": f"Collaboration between {removed_collab['agent1']} and {removed_collab['agent2']} removed",
+            "removed_collaboration": removed_collab
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Collaboration not found")
+
+@app.delete("/agents/{agent1}/collaborate/{agent2}")
+async def remove_collaboration_by_agents(agent1: str, agent2: str):
+    """Remove collaboration between two specific agents."""
+    # Find collaboration by agent names
+    collab_to_remove = None
+    collab_id_to_remove = None
+
+    for collab_id, collab in active_collaborations.items():
+        if (collab['agent1'] == agent1 and collab['agent2'] == agent2) or \
+           (collab['agent1'] == agent2 and collab['agent2'] == agent1):
+            collab_to_remove = collab
+            collab_id_to_remove = collab_id
+            break
+
+    if collab_to_remove:
+        active_collaborations.pop(collab_id_to_remove)
+        return {
+            "success": True,
+            "message": f"Collaboration between {agent1} and {agent2} removed",
+            "removed_collaboration": collab_to_remove
+        }
+    else:
+        raise HTTPException(status_code=404, detail=f"No active collaboration found between {agent1} and {agent2}")
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Load real agents on startup."""
+    print("🚀 Starting Agentic Framework API...")
+    await load_real_agents()
+    print(f"✅ Startup complete. Real agents loaded: {len(real_agents)}")
 
 if __name__ == "__main__":
     import uvicorn
